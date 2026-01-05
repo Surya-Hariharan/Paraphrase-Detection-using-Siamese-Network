@@ -1,0 +1,69 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.pyo
+*.pyd
+*.pdb
+*.log
+*.sqlite3
+*.db
+*.env
+.env
+.venv
+venv/
+ENV/
+.env.*
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Node.js
+node_modules/
+
+# Frontend build
+frontend/build/
+frontend/dist/
+
+# Data
+*.csv
+*.tsv
+data/
+
+# Others
+*.bak
+*.swp
+*.tmp
+
+# Ignore model files
+backend/models/
+
+# Ignore environment files
+*.env
+
+# Ignore coverage reports
+htmlcov/
+.coverage
+coverage.xml
+
+# Ignore test outputs
+*.out
+*.test
+
+# Ignore docs build
+/docs/_build/

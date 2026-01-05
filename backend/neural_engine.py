@@ -1,0 +1,360 @@
+"""
+Neural Engine - Document-Level Paraphrase Detection with Siamese Network
+
+ARCHITECTURE (MUST MATCH DIAGRAM):
+    Doc A ──▶ SBERT ──▶ NN ──▶ FV_A ──┐
+                                     ├──▶ Cosine Similarity (L)
+    Doc B ──▶ SBERT ──▶ NN ──▶ FV_B ──┘
+
+COMPONENTS:
+1. SBERT Encoder: Frozen pretrained SentenceTransformer (all-MiniLM-L6-v2)
+   - Encodes text chunks independently
+   - 384-dimensional embeddings
+   - NO gradient updates (frozen weights)
+
+2. NN Block (Siamese Projection Head): Shared neural network
+   - Dense → Tanh → Dense architecture
+   - ONE network shared between Doc A and Doc B
+   - Trainable task-specific projection
+   - Output: Feature Vectors (FV_A, FV_B) in same embedding space
+
+3. Cosine Similarity (L): Semantic similarity measure
+   - Compute similarity between FV_A and FV_B
+   - Range: [-1.0, 1.0]
+   - Threshold-based decision (no classifier)
+
+SEMANTIC SIMILARITY PRINCIPLES:
+- This is an NLP project focused on semantic understanding
+- No generative AI, no RL, no online learning
+- Documents chunked to preserve semantic coherence
+- Chunk embeddings aggregated via mean pooling
+- Explainable threshold-based decisions
+"""
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from sentence_transformers import SentenceTransformer
+from typing import Dict, Any, Tuple, Optional, List
+import numpy as np
+
+
+# ============================================================
+# NN BLOCK: Siamese Projection Head (Diagram Component)
+# ============================================================
+
+class ProjectionHead(nn.Module):
+    """
+    NN Block in the architecture diagram.
+    
+    Siamese projection head with shared weights:
+    Dense(384 → 128) → Tanh → Dense(128 → 256)
+    
+    This is the ONLY trainable component in the pipeline.
+    SBERT weights remain frozen.
+    
+    Input: SBERT embedding (384-dim)
+    Output: Task-specific feature vector FV (256-dim)
+    """
+
+    def __init__(self, input_dim: int = 384, hidden_dim: int = 128, output_dim: int = 256):
+        super().__init__()
+        # Dense → Activation → Dense architecture
+        self.fc1 = nn.Linear(input_dim, hidden_dim)
+        self.activation = nn.Tanh()
+        self.fc2 = nn.Linear(hidden_dim, output_dim)
+
+        # Xavier initialization for better training
+        nn.init.xavier_uniform_(self.fc1.weight)
+        nn.init.zeros_(self.fc1.bias)
+        nn.init.xavier_uniform_(self.fc2.weight)
+        nn.init.zeros_(self.fc2.bias)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Project SBERT embedding to task-specific feature vector.
+        
+        Args:
+            x: SBERT embedding [batch_size, 384] or [384]
+            
+        Returns:
+            Feature vector [batch_size, 256] or [256]
+        """
+        x = self.fc1(x)
+        x = self.activation(x)
+        x = self.fc2(x)
+        return x
+
+    def get_weight_info(self) -> Dict[str, Any]:
+        return {
+            "fc1_shape": tuple(self.fc1.weight.shape),
+            "fc2_shape": tuple(self.fc2.weight.shape),
+            "total_parameters": sum(p.numel() for p in self.parameters()),
+            "trainable": all(p.requires_grad for p in self.parameters())
+        }
+
+
+# ============================================================
+# Inference Model (NO GRADIENTS)
+# ============================================================
+
+class SiameseProjectionModel(nn.Module):
+    """
+    Siamese network for inference only.
+
+    Architecture:
+        Text → SBERT (384) → Projection Head (256) → Cosine Similarity
+    """
+
+    SBERT_MODEL = "all-MiniLM-L6-v2"
+    SBERT_DIM = 384
+    PROJECTION_DIM = 256
+
+    def __init__(self, projection_dim: int = 256):
+        super().__init__()
+
+        # Load SBERT
+        self.sbert_encoder = SentenceTransformer(self.SBERT_MODEL)
+        self.device = self.sbert_encoder.device
+
+        # Projection head must be on SAME device
+        self.projection_head = ProjectionHead(
+            self.SBERT_DIM, projection_dim
+        ).to(self.device)
+
+        self.projection_dim = projection_dim
+
+    def encode_with_sbert(self, text: str) -> torch.Tensor:
+        embedding = self.sbert_encoder.encode(
+            text, convert_to_tensor=True
+        )
+        return embedding.to(self.device)
+
+    def project_embedding(self, embedding: torch.Tensor) -> torch.Tensor:
+        with torch.no_grad():
+            return self.projection_head(embedding.to(self.device))
+
+    def forward(self, doc_a: str, doc_b: str) -> Tuple[torch.Tensor, torch.Tensor]:
+        emb_a = self.encode_with_sbert(doc_a)
+        emb_b = self.encode_with_sbert(doc_b)
+
+        vec_a = self.project_embedding(emb_a)
+        vec_b = self.project_embedding(emb_b)
+
+        return vec_a, vec_b
+
+    def calculate_similarity(self, doc_a: str, doc_b: str) -> Dict[str, Any]:
+        vec_a, vec_b = self.forward(doc_a, doc_b)
+
+        cosine_sim = F.cosine_similarity(
+            vec_a.unsqueeze(0),
+            vec_b.unsqueeze(0)
+        ).item()
+
+        similarity_percentage = (cosine_sim + 1) / 2 * 100
+
+        return {
+            "cosine_similarity": float(cosine_sim),
+            "similarity_percentage": float(similarity_percentage),
+            "model": self.SBERT_MODEL,
+            "projection_dim": self.projection_dim,
+            "device": str(self.device),
+            "architecture": "Siamese SBERT + Projection Head"
+        }
+
+    def demonstrate_weight_sharing(self):
+        info = self.projection_head.get_weight_info()
+        print(f"Projection Head Parameters: {info['total_parameters']:,}")
+        print(f"SBERT Encoder Device: {self.device}")
+        print("Weight sharing verified")
+
+
+# ============================================================
+# Contrastive Loss
+# ============================================================
+
+class ContrastiveLoss(nn.Module):
+    """Contrastive loss with margin."""
+
+    def __init__(self, margin: float = 1.0):
+        super().__init__()
+        self.margin = margin
+
+    def forward(
+        self,
+        emb_a: torch.Tensor,
+        emb_b: torch.Tensor,
+        label: torch.Tensor
+    ) -> torch.Tensor:
+
+        distance = F.pairwise_distance(emb_a, emb_b)
+
+        loss_similar = label * torch.pow(distance, 2)
+        loss_dissimilar = (1 - label) * torch.pow(
+            torch.clamp(self.margin - distance, min=0.0), 2
+        )
+
+        return torch.mean(loss_similar + loss_dissimilar)
+
+
+# ============================================================
+# Trainable Siamese Model (GRADIENTS ENABLED)
+# ============================================================
+
+class TrainableSiameseModel(SiameseProjectionModel):
+    """
+    Siamese model for TRAINING.
+
+    Differences from base class:
+    - Gradients ENABLED
+    - Batch support
+    - Optional SBERT freezing
+    - Optional partial unfreezing (last layer only)
+    """
+
+    def __init__(self, projection_dim: int = 256, freeze_sbert: bool = True, unfreeze_last_sbert_layer: bool = False):
+        super().__init__(projection_dim)
+
+        self.freeze_sbert = freeze_sbert
+        self.unfreeze_last_sbert_layer = unfreeze_last_sbert_layer
+        
+        # CRITICAL: SBERT must remain frozen (no weight updates)
+        # This ensures we only learn task-specific projections
+        if freeze_sbert:
+            print("Freezing SBERT encoder (no gradient updates)...")
+            for name, param in self.sbert_encoder.named_parameters():
+                param.requires_grad = False
+            
+            # Optional: Unfreeze only the last transformer layer for fine-tuning
+            if unfreeze_last_sbert_layer:
+                print("Unfreezing last SBERT transformer layer...")
+                try:
+                    last_layer = self.sbert_encoder[0].auto_model.encoder.layer[-1]
+                    for param in last_layer.parameters():
+                        param.requires_grad = True
+                except Exception as e:
+                    print(f"Warning: Could not unfreeze last layer: {e}")
+        
+        # Verify freezing status
+        self._verify_freezing_status()
+
+    def forward(self, doc_a: str, doc_b: str) -> Tuple[torch.Tensor, torch.Tensor]:
+        emb_a = self.encode_with_sbert(doc_a)
+        emb_b = self.encode_with_sbert(doc_b)
+
+        vec_a = self.projection_head(emb_a)
+        vec_b = self.projection_head(emb_b)
+
+        return vec_a, vec_b
+
+    def forward_batch(
+        self,
+        texts_a: List[str],
+        texts_b: List[str]
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+
+        emb_a = self.sbert_encoder.encode(
+            texts_a, convert_to_tensor=True, show_progress_bar=False
+        ).to(self.device)
+
+        emb_b = self.sbert_encoder.encode(
+            texts_b, convert_to_tensor=True, show_progress_bar=False
+        ).to(self.device)
+
+        proj_a = self.projection_head(emb_a)
+        proj_b = self.projection_head(emb_b)
+
+        return proj_a, proj_b
+
+    def get_trainable_parameters(self):
+        if self.freeze_sbert:
+            return self.projection_head.parameters()
+        return self.parameters()
+    
+    def get_parameter_groups(self, lr_sbert: float = 1e-5, lr_head: float = 1e-4):
+        """Get parameter groups for differential learning rates."""
+        param_groups = []
+        
+        if self.unfreeze_last_sbert_layer:
+            last_layer = self.sbert_encoder[0].auto_model.encoder.layer[-1]
+            param_groups.append({
+                'params': last_layer.parameters(),
+                'lr': lr_sbert,
+                'name': 'sbert_last_layer'
+            })
+        
+        param_groups.append({
+            'params': self.projection_head.parameters(),
+            'lr': lr_head,
+            'name': 'projection_head'
+        })
+        
+        return param_groups
+
+    def compute_similarity_batch(
+        self,
+        emb_a: torch.Tensor,
+        emb_b: torch.Tensor
+    ) -> torch.Tensor:
+        """Compute cosine similarity for a batch of embeddings."""
+        return F.cosine_similarity(emb_a, emb_b)
+
+    def save_model(self, path: str):
+        state_dict = {"projection_head": self.projection_head.state_dict()}
+        if self.unfreeze_last_sbert_layer:
+            state_dict["sbert_last_layer"] = self.sbert_encoder[0].auto_model.encoder.layer[-1].state_dict()
+        
+        torch.save(
+            {
+                **state_dict,
+                "projection_dim": self.projection_dim,
+                "freeze_sbert": self.freeze_sbert,
+                "unfreeze_last_sbert_layer": self.unfreeze_last_sbert_layer
+            },
+            path
+        )
+
+    def load_model(self, path: str):
+        checkpoint = torch.load(path, map_location=self.device)
+        self.projection_head.load_state_dict(checkpoint["projection_head"])
+        if self.unfreeze_last_sbert_layer and "sbert_last_layer" in checkpoint:
+            self.sbert_encoder[0].auto_model.encoder.layer[-1].load_state_dict(checkpoint["sbert_last_layer"])
+
+    def save_checkpoint(self, path: str, epoch: int, optimizer_state: dict):
+        """Save full training checkpoint."""
+        state_dict = {"projection_head": self.projection_head.state_dict()}
+        if self.unfreeze_last_sbert_layer:
+            state_dict["sbert_last_layer"] = self.sbert_encoder[0].auto_model.encoder.layer[-1].state_dict()
+        
+        torch.save(
+            {
+                "epoch": epoch,
+                **state_dict,
+                "projection_dim": self.projection_dim,
+                "freeze_sbert": self.freeze_sbert,
+                "unfreeze_last_sbert_layer": self.unfreeze_last_sbert_layer,
+                "optimizer_state": optimizer_state
+            },
+            path
+        )
+
+    def load_checkpoint(self, path: str):
+        """Load training checkpoint."""
+        checkpoint = torch.load(path, map_location=self.device)
+        self.projection_head.load_state_dict(checkpoint["projection_head"])
+        if self.unfreeze_last_sbert_layer and "sbert_last_layer" in checkpoint:
+            self.sbert_encoder[0].auto_model.encoder.layer[-1].load_state_dict(checkpoint["sbert_last_layer"])
+        return checkpoint.get("epoch", 0), checkpoint.get("optimizer_state", None)
+    
+    def _verify_freezing_status(self):
+        """Verify SBERT freezing and log parameter status."""
+        sbert_params = sum(p.numel() for p in self.sbert_encoder.parameters())
+        sbert_trainable = sum(p.numel() for p in self.sbert_encoder.parameters() if p.requires_grad)
+        projection_params = sum(p.numel() for p in self.projection_head.parameters())
+        projection_trainable = sum(p.numel() for p in self.projection_head.parameters() if p.requires_grad)
+        
+        print(f"\n=== Parameter Status ===")
+        print(f"SBERT: {sbert_params:,} total, {sbert_trainable:,} trainable")
+        print(f"Projection Head: {projection_params:,} total, {projection_trainable:,} trainable")
+        print(f"SBERT frozen: {sbert_trainable == 0 or (self.unfreeze_last_sbert_layer and sbert_trainable < sbert_params)}")
+        print(f"========================\n")
