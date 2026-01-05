@@ -1,0 +1,111 @@
+# =============================================================================
+# Docker Ignore - Exclude unnecessary files from Docker build context
+# =============================================================================
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+!README.md
+docs/
+*.pdf
+
+# Data files (exclude large datasets)
+data/*.csv
+data/*.json
+data/*.txt
+!data/.gitkeep
+
+# Models and checkpoints (build separately or download)
+models/*.pt
+models/*.pth
+!models/.gitkeep
+checkpoints/*.pt
+checkpoints/*.pth
+!checkpoints/.gitkeep
+
+# Logs
+*.log
+logs/
+*.cache
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+uploads/
+
+# Environment files (use docker env vars)
+.env
+.env.local
+.env.*.local
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Frontend (if not needed in backend container)
+frontend/node_modules/
+frontend/build/
+frontend/dist/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.circleci/
+
+# Deployment configs
+railway.json
+vercel.json
+render.yaml
+fly.toml
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Large media files
+*.mp4
+*.avi
+*.mov
+*.zip
+*.tar.gz

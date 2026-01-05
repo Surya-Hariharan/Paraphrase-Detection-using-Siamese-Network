@@ -48,6 +48,39 @@ tqdm==4.67.1
 # -----------
 # FastAPI for REST API
 fastapi==0.121.1
+uvicorn[standard]==0.27.1
+
+# Production Server
+# -----------------
+gunicorn==21.2.0
+
+# File Processing
+# ---------------
+python-multipart==0.0.9
+aiofiles==23.2.1
+
+# Configuration Management
+# -------------------------
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# Logging & Monitoring
+# --------------------
+loguru==0.7.2
+
+# CORS & Security
+# ---------------
+python-jose[cryptography]==3.3.0
+
+# Optional: Database (uncomment if using PostgreSQL)
+# --------------------------------------------------
+# psycopg2-binary==2.9.9
+# sqlalchemy==2.0.25
+
+# Optional: Caching (uncomment if using Redis)
+# --------------------------------------------
+# redis==5.0.1
+# hiredis==2.3.2
 uvicorn==0.33.0
 python-multipart==0.0.20
 pydantic==2.10.6

@@ -1,0 +1,49 @@
+services:
+  # Web Service
+  - type: web
+    name: paraphrase-detection-api
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    region: oregon
+    branch: main
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+      - key: PYTHON_VERSION
+        value: "3.10"
+      - key: API_HOST
+        value: 0.0.0.0
+      - key: PORT
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+    autoDeploy: true
+    
+  # Background Worker (optional, for async processing)
+  - type: worker
+    name: paraphrase-detection-worker
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    region: oregon
+    branch: main
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: WORKER_TYPE
+        value: celery
+    autoDeploy: true
+    
+# Databases (optional)
+databases:
+  - name: paraphrase-db
+    databaseName: paraphrase_production
+    user: paraphrase_user
+    plan: starter
+    region: oregon
