@@ -21,9 +21,14 @@ from pathlib import Path
 from typing import Optional, Tuple
 import torch
 from torch.utils.data import random_split
+import sys
+import os
 
-from neural_engine import TrainableSiameseModel
-from training_pipeline import (
+# Add parent directory to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+from backend.core.neural_engine import TrainableSiameseModel
+from backend.core.training_pipeline import (
     ParaphraseDataset,
     SiameseTrainer,
     create_simple_dataset

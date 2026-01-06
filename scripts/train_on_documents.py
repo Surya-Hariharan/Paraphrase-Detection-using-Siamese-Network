@@ -21,9 +21,14 @@ from pathlib import Path
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+import sys
+import os
 
-from document_loader import load_document
-from neural_engine import TrainableSiameseModel, ContrastiveLoss
+# Add parent directory to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+from backend.utils.document_loader import load_document
+from backend.core.neural_engine import TrainableSiameseModel, ContrastiveLoss
 
 console = Console()
 

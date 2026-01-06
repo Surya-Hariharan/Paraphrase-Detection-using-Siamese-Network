@@ -20,9 +20,15 @@ from pathlib import Path
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+import sys
+import os
 
-from document_loader import load_two_documents_from_folder
-from neural_engine import TrainableSiameseModel, SiameseProjectionModel
+# Add parent directory to path for imports
+parent_dir = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(parent_dir))
+
+from backend.utils.document_loader import load_two_documents_from_folder
+from backend.core.neural_engine import TrainableSiameseModel, SiameseProjectionModel
 
 console = Console()
 
@@ -93,7 +99,7 @@ def compare_documents(
     if use_agents:
         console.print("\n[bold]Phase 2: Multi-Agent Analysis[/bold]")
         try:
-            from agent_crew import create_crew
+            from backend.agents.agent_crew import create_crew
             
             crew = create_crew(provider)
             result = crew.analyze(doc_a, doc_b, similarity_score)

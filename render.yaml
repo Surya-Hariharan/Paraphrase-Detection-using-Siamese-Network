@@ -2,7 +2,7 @@ services:
   # Web Service
   - type: web
     name: paraphrase-detection-api
-    env: docker
+    runtime: docker
     dockerfilePath: ./Dockerfile
     plan: starter
     region: oregon
@@ -28,7 +28,7 @@ services:
   # Background Worker (optional, for async processing)
   - type: worker
     name: paraphrase-detection-worker
-    env: docker
+    runtime: docker
     dockerfilePath: ./Dockerfile
     plan: starter
     region: oregon

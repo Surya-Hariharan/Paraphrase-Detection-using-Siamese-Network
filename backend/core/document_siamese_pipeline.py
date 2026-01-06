@@ -53,8 +53,8 @@ from typing import Dict, Any, List, Tuple, Optional
 import numpy as np
 from pathlib import Path
 
-from neural_engine import TrainableSiameseModel, SiameseProjectionModel
-from document_processor import DocumentProcessor
+from .neural_engine import TrainableSiameseModel, SiameseProjectionModel
+from ..utils.document_processor import DocumentProcessor
 
 
 class DocumentLevelSiameseModel:

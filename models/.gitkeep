@@ -1,8 +1,0 @@
-# This directory stores trained model weights
-
-Place your trained Siamese projection head models here:
-- `siamese_trained.pt` - Main trained model
-- `best_model.pt` - Best performing model
-- etc.
-
-Models are excluded from git due to large file sizes.

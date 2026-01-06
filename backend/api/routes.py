@@ -23,12 +23,12 @@ import uvicorn
 
 # Import our modules
 try:
-    from document_siamese_pipeline import DocumentLevelSiameseModel
-    from document_processor import DocumentProcessor
+    from backend.core.document_siamese_pipeline import DocumentLevelSiameseModel
+    from backend.utils.document_processor import DocumentProcessor
 except ImportError:
     # For deployment contexts
-    from backend.document_siamese_pipeline import DocumentLevelSiameseModel
-    from backend.document_processor import DocumentProcessor
+    from core.document_siamese_pipeline import DocumentLevelSiameseModel
+    from utils.document_processor import DocumentProcessor
 
 # =============================================================================
 # Configuration

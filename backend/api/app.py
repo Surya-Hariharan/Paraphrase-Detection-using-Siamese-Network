@@ -17,7 +17,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import uvicorn
 
-from neural_engine import SiameseProjectionModel
+# Add parent directory to path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from backend.core.neural_engine import SiameseProjectionModel
 
 app = FastAPI(
     title="Paraphrase Detection API",
