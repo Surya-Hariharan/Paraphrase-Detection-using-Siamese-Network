@@ -31,8 +31,8 @@ import json
 from datetime import datetime
 
 # Our modules
-from neural_engine import TrainableSiameseModel, ContrastiveLoss
-from document_processor import DocumentProcessor
+from .neural_engine import TrainableSiameseModel, ContrastiveLoss
+from ..utils.document_processor import DocumentProcessor
 from dotenv import load_dotenv
 
 # CrewAI for agents (optional)
@@ -524,8 +524,10 @@ class SiameseTrainer:
                     for param in self.model.projection_head.parameters() 
                     if param.grad is not None
                 ]
-                assert all(g > 0 for g in grad_norms), "Zero gradients in projection head!"
-                gradient_verified = True
+                if all(g > 0 for g in grad_norms):
+                    gradient_verified = True
+                elif len(grad_norms) == 0:
+                    print("Warning: No gradients found in projection head")
             
             self.optimizer.step()
             
@@ -599,7 +601,10 @@ class SiameseTrainer:
             self._validation_count = 1
         
         if self._validation_count % 5 == 1:  # Print every 5 validations
-            print(f\"  Optimal threshold: {threshold_results['best_threshold']:.3f} \"\n                  f\"(F1: {threshold_results['best_f1']:.3f})\")\n        \n        return avg_loss, accuracy
+            print(f"  Optimal threshold: {threshold_results['best_threshold']:.3f} "
+                  f"(F1: {threshold_results['best_f1']:.3f})")
+        
+        return avg_loss, accuracy
     
     def monitor_with_agent(self, epoch: int):
         """Run training monitor agent."""

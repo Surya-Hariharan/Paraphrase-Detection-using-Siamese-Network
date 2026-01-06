@@ -17,13 +17,20 @@ from .core import (
     DocumentLevelSiameseModel,
 )
 
-from .agents import (
-    MultiAgentPipeline,
-    MultiAgentTestCaseGenerator,
-)
+# Optional: Agent modules (requires crewai)
+try:
+    from .agents import (
+        MultiAgentPipeline,
+        MultiAgentTestCaseGenerator,
+    )
+    AGENTS_AVAILABLE = True
+except ImportError:
+    AGENTS_AVAILABLE = False
+    MultiAgentPipeline = None
+    MultiAgentTestCaseGenerator = None
 
 from .utils import (
-    DocumentLoader,
+    load_document,
     DocumentProcessor,
 )
 
