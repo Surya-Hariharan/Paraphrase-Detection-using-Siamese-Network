@@ -550,18 +550,18 @@ class SiameseTrainer:
     
     def validate(self) -> Tuple[float, float]:
         """
-        Validate on validation set.
+        Validate on validation set with threshold optimization.
         
         Returns:
-            (average_loss, accuracy)
+            (average_loss, accuracy_with_optimal_threshold)
         """
         if not self.val_dataset:
             return 0.0, 0.0
         
         self.model.eval()
         total_loss = 0.0
-        correct = 0
-        total = 0
+        all_similarities = []
+        all_labels = []
         
         with torch.no_grad():
             for batch in self.val_loader:
@@ -575,18 +575,31 @@ class SiameseTrainer:
                 # Compute loss
                 loss = self.criterion(embeddings_a, embeddings_b, labels)
                 
-                # Compute accuracy
+                # Collect similarities and labels for threshold optimization
                 similarities = self.model.compute_similarity_batch(embeddings_a, embeddings_b)
-                predictions = (similarities > 0.5).float()
-                correct += (predictions == labels).sum().item()
-                total += labels.size(0)
+                all_similarities.extend(similarities.cpu().tolist())
+                all_labels.extend(labels.cpu().tolist())
                 
                 total_loss += loss.item()
         
-        avg_loss = total_loss / len(self.val_loader)
-        accuracy = correct / total
+        # Optimize threshold for binary classification
+        threshold_results = self.model.threshold_optimizer.find_optimal_threshold(
+            all_similarities,
+            all_labels
+        )
         
-        return avg_loss, accuracy
+        avg_loss = total_loss / len(self.val_loader)
+        # Use accuracy with optimal threshold (better than fixed 0.5)
+        accuracy = threshold_results['best_accuracy']
+        
+        # Print threshold info occasionally
+        if hasattr(self, '_validation_count'):
+            self._validation_count += 1
+        else:
+            self._validation_count = 1
+        
+        if self._validation_count % 5 == 1:  # Print every 5 validations
+            print(f\"  Optimal threshold: {threshold_results['best_threshold']:.3f} \"\n                  f\"(F1: {threshold_results['best_f1']:.3f})\")\n        \n        return avg_loss, accuracy
     
     def monitor_with_agent(self, epoch: int):
         """Run training monitor agent."""

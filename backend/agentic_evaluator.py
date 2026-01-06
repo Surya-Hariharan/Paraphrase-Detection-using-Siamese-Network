@@ -42,14 +42,15 @@ class AgenticEvaluator:
     It only generates test cases and evaluates the fixed model.
     """
     
-    GROQ_MODEL = "llama-3.3-70b-versatile"
+    GEMINI_MODEL = "gemini/gemini-2.0-flash-exp"  # Fast and capable model
+    GROQ_MODEL = "llama-3.3-70b-versatile"  # Fallback if user wants Groq
     
-    def __init__(self, provider: str = "groq"):
+    def __init__(self, provider: str = "gemini"):
         """
         Initialize agentic evaluator.
         
         Args:
-            provider: LLM provider ("groq" or "ollama")
+            provider: LLM provider ("gemini" or "groq" - default: gemini)
         """
         if not CREWAI_AVAILABLE:
             raise ImportError("CrewAI required for agentic evaluation")
@@ -62,14 +63,29 @@ class AgenticEvaluator:
         self.adversarial_generator = self._create_adversarial_generator()
         self.evaluation_orchestrator = self._create_evaluation_orchestrator()
         
-        print("\n✓ Agentic Evaluator initialized (EVALUATION MODE ONLY)")
+        print(f"\n✓ Agentic Evaluator initialized with {provider.upper()} (EVALUATION MODE ONLY)")
         print("  - No training")
         print("  - No weight updates")
         print("  - Test generation and inference only\n")
     
     def _initialize_llm(self):
         """Initialize LLM for agents."""
-        if self.provider == "groq":
+        if self.provider == "gemini":
+            api_key = os.getenv("GEMINI_API_KEY")
+            if not api_key:
+                raise ValueError(
+                    "GEMINI_API_KEY not found in environment.\\n"
+                    "Get your free API key at: https://aistudio.google.com/app/apikey"
+                )
+            
+            return LLM(
+                model=self.GEMINI_MODEL,
+                api_key=api_key,
+                temperature=0.7,  # Higher temperature for generation
+                max_tokens=2048
+            )
+        
+        elif self.provider == "groq":
             api_key = os.getenv("GROQ_API_KEY")
             if not api_key:
                 raise ValueError("GROQ_API_KEY not found in environment")
@@ -77,7 +93,7 @@ class AgenticEvaluator:
             return LLM(
                 model=f"groq/{self.GROQ_MODEL}",
                 api_key=api_key,
-                temperature=0.7,  # Higher temperature for generation
+                temperature=0.7,
                 max_tokens=2048
             )
         

@@ -198,42 +198,165 @@ class ContrastiveLoss(nn.Module):
 
 
 # ============================================================
+# Threshold Optimizer for Binary Classification
+# ============================================================
+
+class ThresholdOptimizer:
+    """
+    Optimize threshold for converting cosine similarity to binary labels.
+    
+    Addresses the mismatch between continuous similarity scores [-1, 1]
+    and binary labels [0, 1].
+    """
+    
+    def __init__(self):
+        self.best_threshold = 0.75  # Default
+        self.best_accuracy = 0.0
+    
+    def find_optimal_threshold(
+        self,
+        similarities: List[float],
+        labels: List[int],
+        thresholds: Optional[List[float]] = None
+    ) -> Dict[str, Any]:
+        """
+        Find optimal threshold by grid search.
+        
+        Args:
+            similarities: Cosine similarity scores
+            labels: Binary labels (0 or 1)
+            thresholds: List of thresholds to try (default: 0.0 to 1.0)
+        
+        Returns:
+            Dict with best_threshold, best_accuracy, and metrics
+        """
+        if thresholds is None:
+            # Try thresholds from 0.0 to 1.0 in steps of 0.05
+            thresholds = [i * 0.05 for i in range(21)]
+        
+        best_threshold = 0.75
+        best_accuracy = 0.0
+        best_f1 = 0.0
+        threshold_results = []
+        
+        for threshold in thresholds:
+            # Convert similarities to predictions
+            predictions = [1 if sim >= threshold else 0 for sim in similarities]
+            
+            # Calculate metrics
+            correct = sum(1 for pred, label in zip(predictions, labels) if pred == label)
+            accuracy = correct / len(labels) if labels else 0.0
+            
+            # Calculate F1 score
+            tp = sum(1 for pred, label in zip(predictions, labels) if pred == 1 and label == 1)
+            fp = sum(1 for pred, label in zip(predictions, labels) if pred == 1 and label == 0)
+            fn = sum(1 for pred, label in zip(predictions, labels) if pred == 0 and label == 1)
+            
+            precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+            recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+            f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
+            
+            threshold_results.append({
+                'threshold': threshold,
+                'accuracy': accuracy,
+                'f1': f1,
+                'precision': precision,
+                'recall': recall
+            })
+            
+            # Update best threshold based on F1 score (better for imbalanced data)
+            if f1 > best_f1:
+                best_f1 = f1
+                best_threshold = threshold
+                best_accuracy = accuracy
+        
+        self.best_threshold = best_threshold
+        self.best_accuracy = best_accuracy
+        
+        return {
+            'best_threshold': best_threshold,
+            'best_accuracy': best_accuracy,
+            'best_f1': best_f1,
+            'all_results': threshold_results
+        }
+    
+    def apply_threshold(self, similarity: float) -> int:
+        """Apply best threshold to get binary prediction."""
+        return 1 if similarity >= self.best_threshold else 0
+
+
+# ============================================================
 # Trainable Siamese Model (GRADIENTS ENABLED)
 # ============================================================
 
 class TrainableSiameseModel(SiameseProjectionModel):
     """
-    Siamese model for TRAINING.
+    Siamese model for TRAINING with SBERT fine-tuning support.
 
     Differences from base class:
     - Gradients ENABLED
     - Batch support
-    - Optional SBERT freezing
-    - Optional partial unfreezing (last layer only)
+    - Flexible SBERT freezing/fine-tuning strategies
+    - Threshold optimizer for binary classification
     """
 
-    def __init__(self, projection_dim: int = 256, freeze_sbert: bool = True, unfreeze_last_sbert_layer: bool = False):
+    def __init__(
+        self, 
+        projection_dim: int = 256, 
+        freeze_sbert: bool = False,  # Changed default to False for fine-tuning
+        unfreeze_last_sbert_layer: bool = False,
+        unfreeze_last_n_layers: int = 2  # Fine-tune last 2 layers by default
+    ):
         super().__init__(projection_dim)
 
         self.freeze_sbert = freeze_sbert
         self.unfreeze_last_sbert_layer = unfreeze_last_sbert_layer
+        self.unfreeze_last_n_layers = unfreeze_last_n_layers
         
-        # CRITICAL: SBERT must remain frozen (no weight updates)
-        # This ensures we only learn task-specific projections
+        # Threshold optimizer for converting similarity to binary predictions
+        self.threshold_optimizer = ThresholdOptimizer()
+        
+        # Configure SBERT training strategy
         if freeze_sbert:
-            print("Freezing SBERT encoder (no gradient updates)...")
+            # Strategy 1: Freeze all SBERT (fast, low memory, good for small datasets)
+            print("🔒 Freezing SBERT encoder (no gradient updates)...")
             for name, param in self.sbert_encoder.named_parameters():
                 param.requires_grad = False
             
-            # Optional: Unfreeze only the last transformer layer for fine-tuning
+            # Optional: Unfreeze only the last transformer layer
             if unfreeze_last_sbert_layer:
-                print("Unfreezing last SBERT transformer layer...")
+                print("🔓 Unfreezing last SBERT transformer layer for fine-tuning...")
                 try:
                     last_layer = self.sbert_encoder[0].auto_model.encoder.layer[-1]
                     for param in last_layer.parameters():
                         param.requires_grad = True
+                    print(\"   ✓ Last layer unfrozen successfully\")
                 except Exception as e:
-                    print(f"Warning: Could not unfreeze last layer: {e}")
+                    print(f\"   ⚠️  Warning: Could not unfreeze last layer: {e}\")
+        else:
+            # Strategy 2: Fine-tune SBERT (slower, higher memory, better accuracy)
+            print(f\"🔓 Fine-tuning SBERT: unfreezing last {unfreeze_last_n_layers} transformer layer(s)...\")
+            
+            # First freeze everything
+            for param in self.sbert_encoder.parameters():
+                param.requires_grad = False
+            
+            # Then unfreeze last N layers
+            try:
+                transformer = self.sbert_encoder[0].auto_model
+                if hasattr(transformer, 'encoder') and hasattr(transformer.encoder, 'layer'):
+                    total_layers = len(transformer.encoder.layer)
+                    start_idx = max(0, total_layers - unfreeze_last_n_layers)
+                    
+                    for layer_idx in range(start_idx, total_layers):
+                        for param in transformer.encoder.layer[layer_idx].parameters():
+                            param.requires_grad = True
+                    
+                    print(f\"   ✓ Unfroze layers {start_idx}-{total_layers-1} (total: {total_layers} layers)\")
+                    print(f\"   This will improve accuracy but requires more GPU memory\")\n                else:
+                    print(\"   ⚠️  Warning: Could not identify transformer layers, keeping all frozen\")
+            except Exception as e:
+                print(f\"   ⚠️  Warning: Error during unfreezing: {e}\")
         
         # Verify freezing status
         self._verify_freezing_status()

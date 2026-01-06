@@ -143,18 +143,23 @@ def main():
     parser.add_argument(
         '--freeze-sbert',
         action='store_true',
-        default=True,
-        help='Freeze SBERT encoder (only train projection head) - DEFAULT: True'
+        help='Freeze SBERT encoder (only train projection head) - Faster training, lower memory'
     )
     parser.add_argument(
         '--unfreeze-sbert',
         action='store_true',
-        help='Unfreeze SBERT encoder (train full model) - NOT RECOMMENDED'
+        help='Fine-tune SBERT encoder (better accuracy, needs more memory) - RECOMMENDED'
     )
     parser.add_argument(
         '--unfreeze-last-sbert-layer',
         action='store_true',
-        help='Unfreeze only last SBERT layer with differential LR - RECOMMENDED for better accuracy'
+        help='Unfreeze only last SBERT layer with differential LR'
+    )
+    parser.add_argument(
+        '--unfreeze-last-n-layers',
+        type=int,
+        default=2,
+        help='Number of last SBERT layers to unfreeze (default: 2) - Good balance'
     )
     
     # Training arguments
@@ -225,17 +230,27 @@ def main():
     console.print("-"*50, style="bold cyan")
     
     # Print configuration
-    freeze_sbert = not args.unfreeze_sbert if hasattr(args, 'unfreeze_sbert') else True
-    unfreeze_last_layer = args.unfreeze_last_sbert_layer if hasattr(args, 'unfreeze_last_sbert_layer') else False
+    freeze_sbert = args.freeze_sbert if not args.unfreeze_sbert else False
+    unfreeze_last_layer = args.unfreeze_last_sbert_layer
+    unfreeze_n_layers = args.unfreeze_last_n_layers if hasattr(args, 'unfreeze_last_n_layers') else 2
     
     console.print("\n[bold]Configuration:[/bold]")
     console.print(f"  Data Path: {args.data_path or 'Demo dataset'}")
     console.print(f"  Projection Dim: {args.projection_dim}")
-    console.print(f"  Freeze SBERT: {freeze_sbert} {'✓ RECOMMENDED' if freeze_sbert else '⚠️  NOT RECOMMENDED'}")
-    console.print(f"  Unfreeze Last Layer: {unfreeze_last_layer} {'✓ HIGHER ACCURACY' if unfreeze_last_layer else ''}")
+    
+    # SBERT Training Strategy
+    if freeze_sbert:
+        if unfreeze_last_layer:
+            console.print(f"  SBERT Strategy: Freeze all except last layer ⚡ BALANCED")
+        else:
+            console.print(f"  SBERT Strategy: Fully frozen ❄️  FAST (Lower accuracy)")
+    else:
+        console.print(f"  SBERT Strategy: Fine-tune last {unfreeze_n_layers} layers 🔥 BEST ACCURACY")
+        console.print(f"                  (Requires more GPU memory)")
+    
     console.print(f"  Epochs: {args.epochs}")
     console.print(f"  Batch Size: {args.batch_size}")
-    console.print(f"  Learning Rate: {args.learning_rate} (head) {'/ 1e-5 (SBERT last layer)' if unfreeze_last_layer else ''}")
+    console.print(f"  Learning Rate: {args.learning_rate}")
     console.print(f"  Margin: {args.margin}")
     console.print(f"  AI Agents: {'Enabled' if args.use_agents else 'Disabled'}")
     console.print(f"  Checkpoint Dir: {args.checkpoint_dir}")
@@ -258,14 +273,16 @@ def main():
     console.print("STEP 2: INITIALIZING MODEL", style="bold cyan")
     console.print("="*70, style="bold cyan")
     
-    # Determine if SBERT should be frozen (default: True)
-    freeze_sbert = not args.unfreeze_sbert if hasattr(args, 'unfreeze_sbert') else True
-    unfreeze_last_layer = args.unfreeze_last_sbert_layer if hasattr(args, 'unfreeze_last_sbert_layer') else False
+    # Determine SBERT training strategy
+    freeze_sbert = args.freeze_sbert if not args.unfreeze_sbert else False
+    unfreeze_last_layer = args.unfreeze_last_sbert_layer
+    unfreeze_n_layers = args.unfreeze_last_n_layers if hasattr(args, 'unfreeze_last_n_layers') else 2
     
     model = TrainableSiameseModel(
         projection_dim=args.projection_dim,
         freeze_sbert=freeze_sbert,
-        unfreeze_last_sbert_layer=unfreeze_last_layer
+        unfreeze_last_sbert_layer=unfreeze_last_layer,
+        unfreeze_last_n_layers=unfreeze_n_layers
     )
     
     total_params = sum(p.numel() for p in model.parameters())
