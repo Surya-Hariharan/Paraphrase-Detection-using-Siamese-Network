@@ -330,12 +330,12 @@ class TrainableSiameseModel(SiameseProjectionModel):
                     last_layer = self.sbert_encoder[0].auto_model.encoder.layer[-1]
                     for param in last_layer.parameters():
                         param.requires_grad = True
-                    print(\"   ✓ Last layer unfrozen successfully\")
+                    print("   ✓ Last layer unfrozen successfully")
                 except Exception as e:
-                    print(f\"   ⚠️  Warning: Could not unfreeze last layer: {e}\")
+                    print(f"   ⚠️  Warning: Could not unfreeze last layer: {e}")
         else:
             # Strategy 2: Fine-tune SBERT (slower, higher memory, better accuracy)
-            print(f\"🔓 Fine-tuning SBERT: unfreezing last {unfreeze_last_n_layers} transformer layer(s)...\")
+            print(f"🔓 Fine-tuning SBERT: unfreezing last {unfreeze_last_n_layers} transformer layer(s)...")
             
             # First freeze everything
             for param in self.sbert_encoder.parameters():
@@ -352,11 +352,12 @@ class TrainableSiameseModel(SiameseProjectionModel):
                         for param in transformer.encoder.layer[layer_idx].parameters():
                             param.requires_grad = True
                     
-                    print(f\"   ✓ Unfroze layers {start_idx}-{total_layers-1} (total: {total_layers} layers)\")
-                    print(f\"   This will improve accuracy but requires more GPU memory\")\n                else:
-                    print(\"   ⚠️  Warning: Could not identify transformer layers, keeping all frozen\")
+                    print(f"   ✓ Unfroze layers {start_idx}-{total_layers-1} (total: {total_layers} layers)")
+                    print(f"   This will improve accuracy but requires more GPU memory")
+                else:
+                    print("   ⚠️  Warning: Could not identify transformer layers, keeping all frozen")
             except Exception as e:
-                print(f\"   ⚠️  Warning: Error during unfreezing: {e}\")
+                print(f"   ⚠️  Warning: Error during unfreezing: {e}")
         
         # Verify freezing status
         self._verify_freezing_status()

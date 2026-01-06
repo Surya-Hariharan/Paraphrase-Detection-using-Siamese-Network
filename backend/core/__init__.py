@@ -8,8 +8,9 @@ for paraphrase detection.
 from .neural_engine import (
     TrainableSiameseModel,
     ThresholdOptimizer,
-    SBERTEncoder,
+    SiameseProjectionModel,
     ProjectionHead,
+    ContrastiveLoss,
 )
 
 from .document_siamese_pipeline import DocumentLevelSiameseModel
@@ -17,7 +18,8 @@ from .document_siamese_pipeline import DocumentLevelSiameseModel
 __all__ = [
     "TrainableSiameseModel",
     "ThresholdOptimizer",
-    "SBERTEncoder",
+    "SiameseProjectionModel",
     "ProjectionHead",
+    "ContrastiveLoss",
     "DocumentLevelSiameseModel",
 ]
