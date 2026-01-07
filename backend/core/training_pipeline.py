@@ -29,6 +29,7 @@ import numpy as np
 from pathlib import Path
 import json
 from datetime import datetime
+from transformers import get_cosine_schedule_with_warmup
 
 # Our modules
 from .neural_engine import TrainableSiameseModel, ContrastiveLoss
@@ -392,11 +393,17 @@ class SiameseTrainer:
                 lr=learning_rate,
                 weight_decay=0.01
             )
-        self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+        
+        # Linear warmup + cosine annealing: warmup stabilizes fine-tuning, cosine decay prevents overfitting
+        self.num_epochs = num_epochs  # Store for scheduler calculation
+        steps_per_epoch = len(train_dataset) // batch_size
+        total_steps = num_epochs * steps_per_epoch
+        warmup_steps = int(0.1 * total_steps)  # 10% warmup
+        
+        self.scheduler = get_cosine_schedule_with_warmup(
             self.optimizer,
-            mode='min',
-            patience=2,
-            factor=0.5
+            num_warmup_steps=warmup_steps,
+            num_training_steps=total_steps
         )
         
         # Data loaders
@@ -530,6 +537,7 @@ class SiameseTrainer:
                     print("Warning: No gradients found in projection head")
             
             self.optimizer.step()
+            self.scheduler.step()  # Step scheduler after each batch
             
             # Compute accuracy
             similarities = self.model.compute_similarity_batch(embeddings_a, embeddings_b)
