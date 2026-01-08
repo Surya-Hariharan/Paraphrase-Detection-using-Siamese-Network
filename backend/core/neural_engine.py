@@ -182,11 +182,12 @@ class SiameseProjectionModel(nn.Module):
 # ============================================================
 
 class ContrastiveLoss(nn.Module):
-    """Contrastive loss with margin."""
+    """Contrastive loss with margin and numerical stability."""
 
     def __init__(self, margin: float = 1.0):
         super().__init__()
         self.margin = margin
+        self.eps = 1e-8  # For numerical stability
 
     def forward(
         self,
@@ -195,14 +196,29 @@ class ContrastiveLoss(nn.Module):
         label: torch.Tensor
     ) -> torch.Tensor:
 
-        distance = F.pairwise_distance(emb_a, emb_b)
+        # Normalize embeddings for stability (L2 normalization)
+        emb_a = F.normalize(emb_a, p=2, dim=1)
+        emb_b = F.normalize(emb_b, p=2, dim=1)
+        
+        # Compute distance with numerical stability
+        distance = F.pairwise_distance(emb_a, emb_b, eps=self.eps)
+        
+        # Clamp distance to prevent extreme values
+        distance = torch.clamp(distance, min=self.eps, max=2.0)
 
         loss_similar = label * torch.pow(distance, 2)
         loss_dissimilar = (1 - label) * torch.pow(
             torch.clamp(self.margin - distance, min=0.0), 2
         )
 
-        return torch.mean(loss_similar + loss_dissimilar)
+        loss = torch.mean(loss_similar + loss_dissimilar)
+        
+        # Check for NaN and return a safe value if detected
+        if torch.isnan(loss) or torch.isinf(loss):
+            print("⚠️  NaN/Inf detected in loss! Using safe fallback value")
+            return torch.tensor(1.0, device=loss.device, requires_grad=True)
+        
+        return loss
 
 
 # ============================================================

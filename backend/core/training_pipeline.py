@@ -531,6 +531,11 @@ class SiameseTrainer:
                     embeddings_a, embeddings_b = self.model.forward_batch(texts_a, texts_b)
                     loss = self.criterion(embeddings_a, embeddings_b, labels)
                 
+                # Check for NaN loss before backward
+                if torch.isnan(loss) or torch.isinf(loss):
+                    print(f"⚠️  Skipping batch due to NaN/Inf loss")
+                    continue
+                
                 # Backward pass with gradient scaling
                 self.scaler.scale(loss).backward()
                 self.scaler.unscale_(self.optimizer)
@@ -540,6 +545,12 @@ class SiameseTrainer:
             else:
                 embeddings_a, embeddings_b = self.model.forward_batch(texts_a, texts_b)
                 loss = self.criterion(embeddings_a, embeddings_b, labels)
+                
+                # Check for NaN loss before backward
+                if torch.isnan(loss) or torch.isinf(loss):
+                    print(f"⚠️  Skipping batch due to NaN/Inf loss")
+                    continue
+                
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
                 self.optimizer.step()
@@ -556,8 +567,8 @@ class SiameseTrainer:
                 elif len(grad_norms) == 0:
                     print("Warning: No gradients found in projection head")
             
-            self.optimizer.step()
-            self.scheduler.step()  # Step scheduler after each batch
+            # Step scheduler after each batch
+            self.scheduler.step()
             
             # Collect similarities for threshold optimization
             similarities = self.model.compute_similarity_batch(embeddings_a, embeddings_b)

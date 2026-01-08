@@ -178,8 +178,8 @@ def main():
     parser.add_argument(
         '--learning-rate',
         type=float,
-        default=2e-4,
-        help='Learning rate (default: 2e-4, optimized for full fine-tuning)'
+        default=5e-5,
+        help='Learning rate (default: 5e-5, safe for full SBERT fine-tuning)'
     )
     parser.add_argument(
         '--margin',
