@@ -1,49 +1,53 @@
+# =============================================================================
+# RENDER.COM DEPLOYMENT CONFIGURATION
+# =============================================================================
+# Production deployment for FastAPI backend
+
 services:
-  # Web Service
+  # ===========================================================================
+  # BACKEND API WEB SERVICE
+  # ===========================================================================
   - type: web
-    name: paraphrase-detection-api
-    runtime: docker
-    dockerfilePath: ./Dockerfile
-    plan: starter
-    region: oregon
+    name: paraphrase-api
+    runtime: python
+    plan: starter  # Free tier (upgrade to 'standard' for production)
+    region: oregon  # Choose: oregon, frankfurt, singapore
     branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.api.inference:app --host 0.0.0.0 --port $PORT --workers 1
     healthCheckPath: /health
+    
+    # Environment variables
     envVars:
-      - key: ENVIRONMENT
-        value: production
-      - key: LOG_LEVEL
-        value: INFO
       - key: PYTHON_VERSION
-        value: "3.10"
+        value: 3.9.18
+      
+      - key: MODEL_PATH
+        value: checkpoints/best_model.pt
+      
+      - key: SBERT_MODEL
+        value: all-MiniLM-L6-v2
+      
+      - key: PROJECTION_DIM
+        value: 256
+      
       - key: API_HOST
         value: 0.0.0.0
-      - key: PORT
-        sync: false
-      - key: GROQ_API_KEY
-        sync: false
-      - key: SECRET_KEY
-        generateValue: true
-    autoDeploy: true
-    
-  # Background Worker (optional, for async processing)
-  - type: worker
-    name: paraphrase-detection-worker
-    runtime: docker
-    dockerfilePath: ./Dockerfile
-    plan: starter
-    region: oregon
-    branch: main
-    envVars:
+      
+      - key: LOG_LEVEL
+        value: INFO
+      
       - key: ENVIRONMENT
         value: production
-      - key: WORKER_TYPE
-        value: celery
+      
+      - key: CORS_ORIGINS
+        value: https://your-frontend.vercel.app,http://localhost:3000
+    
+    # Auto-deploy on git push
     autoDeploy: true
     
-# Databases (optional)
-databases:
-  - name: paraphrase-db
-    databaseName: paraphrase_production
-    user: paraphrase_user
-    plan: starter
-    region: oregon
+    # Disk storage for model files
+    disk:
+      name: model-storage
+      mountPath: /opt/render/project/src/checkpoints
+      sizeGB: 1

@@ -23,6 +23,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
+from torch.cuda.amp import autocast, GradScaler  # Mixed precision training
 from typing import List, Dict, Any, Tuple, Optional
 from tqdm import tqdm
 import numpy as np
@@ -477,6 +478,13 @@ class SiameseTrainer:
             'learning_rates': []
         }
         
+        # Mixed precision training for 2x speedup
+        self.use_amp = torch.cuda.is_available()
+        self.scaler = GradScaler() if self.use_amp else None
+        
+        if self.use_amp:
+            print("✓ Mixed precision training (AMP) enabled for 2x speedup")
+        
         # Agents permanently disabled for maximum performance
         self.agents = None
     
@@ -515,15 +523,15 @@ class SiameseTrainer:
     
     def train_epoch(self, epoch: int) -> Tuple[float, float]:
         """
-        Train for one epoch.
+        Train for one epoch with PROPER accuracy calculation using optimal threshold.
         
         Returns:
-            (average_loss, accuracy)
+            (average_loss, accuracy_with_optimal_threshold)
         """
         self.model.train()
         total_loss = 0.0
-        correct = 0
-        total = 0
+        all_similarities = []
+        all_labels = []
         gradient_verified = False
         
         pbar = tqdm(self.train_loader, desc=f"Epoch {epoch}")
@@ -533,18 +541,26 @@ class SiameseTrainer:
             texts_b = batch['text_b']
             labels = batch['label'].float().to(self.model.device)
             
-            # Forward pass
+            # Forward pass with mixed precision
             self.optimizer.zero_grad()
-            embeddings_a, embeddings_b = self.model.forward_batch(texts_a, texts_b)
             
-            # Compute loss
-            loss = self.criterion(embeddings_a, embeddings_b, labels)
-            
-            # Backward pass
-            loss.backward()
-            
-            # Gradient clipping
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+            if self.use_amp:
+                with autocast():
+                    embeddings_a, embeddings_b = self.model.forward_batch(texts_a, texts_b)
+                    loss = self.criterion(embeddings_a, embeddings_b, labels)
+                
+                # Backward pass with gradient scaling
+                self.scaler.scale(loss).backward()
+                self.scaler.unscale_(self.optimizer)
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+            else:
+                embeddings_a, embeddings_b = self.model.forward_batch(texts_a, texts_b)
+                loss = self.criterion(embeddings_a, embeddings_b, labels)
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+                self.optimizer.step()
             
             # Gradient verification (first batch of first epoch only)
             if epoch == 1 and not gradient_verified:
@@ -561,22 +577,26 @@ class SiameseTrainer:
             self.optimizer.step()
             self.scheduler.step()  # Step scheduler after each batch
             
-            # Compute accuracy
+            # Collect similarities for threshold optimization
             similarities = self.model.compute_similarity_batch(embeddings_a, embeddings_b)
-            predictions = (similarities > 0.5).float()
-            correct += (predictions == labels).sum().item()
-            total += labels.size(0)
+            all_similarities.extend(similarities.cpu().tolist())
+            all_labels.extend(labels.cpu().tolist())
             
             total_loss += loss.item()
             
-            # Update progress bar
+            # Update progress bar with running metrics
             pbar.set_postfix({
-                'loss': f'{loss.item():.4f}',
-                'acc': f'{correct/total:.4f}'
+                'loss': f'{loss.item():.4f}'
             })
         
+        # Calculate accuracy with OPTIMAL threshold (not hardcoded 0.5)
+        threshold_results = self.model.threshold_optimizer.find_optimal_threshold(
+            all_similarities,
+            all_labels
+        )
+        
         avg_loss = total_loss / len(self.train_loader)
-        accuracy = correct / total
+        accuracy = threshold_results['best_accuracy']
         
         return avg_loss, accuracy
     

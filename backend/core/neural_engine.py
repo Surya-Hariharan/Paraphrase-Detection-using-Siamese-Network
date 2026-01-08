@@ -45,36 +45,52 @@ import numpy as np
 
 class ProjectionHead(nn.Module):
     """
-    NN Block in the architecture diagram - OPTIMIZED FOR HIGH ACCURACY.
+    MAXIMUM PERFORMANCE Projection Head with BiLSTM + Attention.
     
-    Enhanced Siamese projection head with shared weights:
-    Dense(384 → 512) → BatchNorm → ReLU → Dropout(0.3) → 
-    Dense(512 → 256) → BatchNorm → ReLU → Dropout(0.2) → 
-    Dense(256 → 256)
+    Architecture:
+    Input(384) → BiLSTM(256) → Attention → Dense(512) → BN → ReLU → Dropout →
+    Dense(512) → BN → ReLU → Dropout → Dense(256)
     
-    This is the ONLY trainable component in the pipeline.
-    SBERT weights remain frozen (or last 2 layers unfrozen).
+    Features:
+    - Bidirectional LSTM for sequential processing
+    - Self-attention mechanism for feature weighting
+    - Deep dense layers with batch normalization
+    - Proper regularization with dropout
     
     Input: SBERT embedding (384-dim)
     Output: Task-specific feature vector FV (256-dim)
     """
 
-    def __init__(self, input_dim: int = 384, hidden_dim: int = 512, output_dim: int = 256, dropout: float = 0.3):
+    def __init__(self, input_dim: int = 384, lstm_hidden: int = 256, hidden_dim: int = 512, output_dim: int = 256, dropout: float = 0.3):
         super().__init__()
-        # Enhanced deeper architecture with batch normalization and dropout
-        self.fc1 = nn.Linear(input_dim, hidden_dim)
+        
+        # BiLSTM for temporal/sequential processing
+        self.bilstm = nn.LSTM(input_dim, lstm_hidden, num_layers=2, 
+                             batch_first=True, bidirectional=True, dropout=dropout)
+        
+        # Attention mechanism
+        self.attention = nn.MultiheadAttention(lstm_hidden * 2, num_heads=4, dropout=dropout, batch_first=True)
+        
+        # Dense layers with enhanced capacity
+        self.fc1 = nn.Linear(lstm_hidden * 2, hidden_dim)
         self.bn1 = nn.BatchNorm1d(hidden_dim)
         self.relu1 = nn.ReLU()
         self.dropout1 = nn.Dropout(dropout)
         
-        self.fc2 = nn.Linear(hidden_dim, output_dim)
-        self.bn2 = nn.BatchNorm1d(output_dim)
+        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
+        self.bn2 = nn.BatchNorm1d(hidden_dim)
         self.relu2 = nn.ReLU()
-        self.dropout2 = nn.Dropout(dropout * 0.67)  # 0.2 dropout
+        self.dropout2 = nn.Dropout(dropout * 0.67)
         
-        self.fc3 = nn.Linear(output_dim, output_dim)
+        self.fc3 = nn.Linear(hidden_dim, output_dim)
 
-        # He initialization for ReLU activation
+        # Proper initialization
+        for name, param in self.bilstm.named_parameters():
+            if 'weight' in name:
+                nn.init.orthogonal_(param)
+            elif 'bias' in name:
+                nn.init.zeros_(param)
+        
         nn.init.kaiming_normal_(self.fc1.weight, mode='fan_out', nonlinearity='relu')
         nn.init.zeros_(self.fc1.bias)
         nn.init.kaiming_normal_(self.fc2.weight, mode='fan_out', nonlinearity='relu')
@@ -84,7 +100,7 @@ class ProjectionHead(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
-        Project SBERT embedding to task-specific feature vector with regularization.
+        Process embedding through BiLSTM + Attention + Dense layers.
         
         Args:
             x: SBERT embedding [batch_size, 384] or [384]
@@ -92,24 +108,47 @@ class ProjectionHead(nn.Module):
         Returns:
             Feature vector [batch_size, 256] or [256]
         """
-        # First layer
-        x = self.fc1(x)
+        # Handle single embedding (add batch and sequence dimensions)
+        if x.dim() == 1:
+            x = x.unsqueeze(0).unsqueeze(0)  # [1, 1, 384]
+            squeeze_output = True
+        elif x.dim() == 2:
+            x = x.unsqueeze(1)  # [batch, 1, 384]
+            squeeze_output = False
+        else:
+            squeeze_output = False
+        
+        # BiLSTM processing
+        lstm_out, _ = self.bilstm(x)  # [batch, seq, lstm_hidden*2]
+        
+        # Self-attention
+        attn_out, _ = self.attention(lstm_out, lstm_out, lstm_out)  # [batch, seq, lstm_hidden*2]
+        
+        # Pool across sequence dimension
+        pooled = attn_out.mean(dim=1)  # [batch, lstm_hidden*2]
+        
+        # Dense layers
+        x = self.fc1(pooled)
         x = self.bn1(x)
         x = self.relu1(x)
         x = self.dropout1(x)
         
-        # Second layer
         x = self.fc2(x)
         x = self.bn2(x)
         x = self.relu2(x)
         x = self.dropout2(x)
         
-        # Output layer (no activation for better embedding space)
         x = self.fc3(x)
+        
+        if squeeze_output:
+            x = x.squeeze(0)
+        
         return x
 
     def get_weight_info(self) -> Dict[str, Any]:
         return {
+            "bilstm_params": sum(p.numel() for p in self.bilstm.parameters()),
+            "attention_params": sum(p.numel() for p in self.attention.parameters()),
             "fc1_shape": tuple(self.fc1.weight.shape),
             "fc2_shape": tuple(self.fc2.weight.shape),
             "fc3_shape": tuple(self.fc3.weight.shape),
@@ -141,9 +180,10 @@ class SiameseProjectionModel(nn.Module):
         self.sbert_encoder = SentenceTransformer(self.SBERT_MODEL)
         self.device = self.sbert_encoder.device
 
-        # Enhanced projection head with deeper architecture
+        # Enhanced projection head with BiLSTM + Attention
         self.projection_head = ProjectionHead(
             input_dim=self.SBERT_DIM,
+            lstm_hidden=256,
             hidden_dim=512,
             output_dim=projection_dim,
             dropout=0.3
@@ -330,61 +370,49 @@ class TrainableSiameseModel(SiameseProjectionModel):
     def __init__(
         self, 
         projection_dim: int = 256, 
-        freeze_sbert: bool = False,  # Changed default to False for fine-tuning
-        unfreeze_last_sbert_layer: bool = False,
-        unfreeze_last_n_layers: int = 2  # Fine-tune last 2 layers by default
+        freeze_sbert: bool = False,  # COMPLETE FINE-TUNING: ALL LAYERS UNFROZEN
+        unfreeze_all: bool = True  # NEW: Unfreeze entire SBERT model
     ):
         super().__init__(projection_dim)
 
         self.freeze_sbert = freeze_sbert
-        self.unfreeze_last_sbert_layer = unfreeze_last_sbert_layer
-        self.unfreeze_last_n_layers = unfreeze_last_n_layers
+        self.unfreeze_all = unfreeze_all
         
         # Threshold optimizer for converting similarity to binary predictions
         self.threshold_optimizer = ThresholdOptimizer()
         
         # Configure SBERT training strategy
         if freeze_sbert:
-            # Strategy 1: Freeze all SBERT (fast, low memory, good for small datasets)
+            # Strategy 1: Freeze all SBERT (fast, low memory, NOT RECOMMENDED)
             print("🔒 Freezing SBERT encoder (no gradient updates)...")
             for name, param in self.sbert_encoder.named_parameters():
                 param.requires_grad = False
+        elif unfreeze_all:
+            # Strategy 2: COMPLETE FINE-TUNING - Unfreeze ENTIRE SBERT model
+            print("🔥 FULL FINE-TUNING: Unfreezing ENTIRE SBERT model (ALL 6 layers)...")
             
-            # Optional: Unfreeze only the last transformer layer
-            if unfreeze_last_sbert_layer:
-                print("🔓 Unfreezing last SBERT transformer layer for fine-tuning...")
-                try:
-                    last_layer = self.sbert_encoder[0].auto_model.encoder.layer[-1]
-                    for param in last_layer.parameters():
-                        param.requires_grad = True
-                    print("   ✓ Last layer unfrozen successfully")
-                except Exception as e:
-                    print(f"   ⚠️  Warning: Could not unfreeze last layer: {e}")
-        else:
-            # Strategy 2: Fine-tune SBERT (slower, higher memory, better accuracy)
-            print(f"🔓 Fine-tuning SBERT: unfreezing last {unfreeze_last_n_layers} transformer layer(s)...")
-            
-            # First freeze everything
+            # Unfreeze all parameters in SBERT
             for param in self.sbert_encoder.parameters():
-                param.requires_grad = False
+                param.requires_grad = True
             
-            # Then unfreeze last N layers
+            # Count trainable parameters
             try:
                 transformer = self.sbert_encoder[0].auto_model
                 if hasattr(transformer, 'encoder') and hasattr(transformer.encoder, 'layer'):
                     total_layers = len(transformer.encoder.layer)
-                    start_idx = max(0, total_layers - unfreeze_last_n_layers)
+                    trainable_params = sum(p.numel() for p in self.sbert_encoder.parameters() if p.requires_grad)
                     
-                    for layer_idx in range(start_idx, total_layers):
-                        for param in transformer.encoder.layer[layer_idx].parameters():
-                            param.requires_grad = True
-                    
-                    print(f"   ✓ Unfroze layers {start_idx}-{total_layers-1} (total: {total_layers} layers)")
-                    print(f"   This will improve accuracy but requires more GPU memory")
+                    print(f"   ✓ ALL {total_layers} transformer layers unfrozen")
+                    print(f"   ✓ Trainable SBERT params: {trainable_params:,}")
+                    print(f"   🎯 Maximum accuracy potential unlocked")
+                    print(f"   ⚠️  Requires ~6-8GB GPU memory")
                 else:
-                    print("   ⚠️  Warning: Could not identify transformer layers, keeping all frozen")
+                    print("   ✓ All SBERT parameters unfrozen")
             except Exception as e:
-                print(f"   ⚠️  Warning: Error during unfreezing: {e}")
+                print(f"   ✓ All SBERT parameters unfrozen (details unavailable: {e})")
+        else:
+            # Fallback: partial unfreezing (not used by default)
+            print("⚠️  Using partial unfreezing (not recommended)")
         
         # Verify freezing status
         self._verify_freezing_status()

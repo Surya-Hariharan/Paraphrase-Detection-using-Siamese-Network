@@ -1,53 +1,39 @@
-# Paraphrase Detection System - Requirements
-# ==========================================
-# Version: 2.1.0 (Optimized for tf-gpu environment)
-# Last Updated: January 2, 2026
+# ===========================================
+# Core Dependencies - FULL PERFORMANCE MODE
+# ===========================================
 
-# Phase 1: Neural Pipeline
-# ------------------------
-# Sentence Transformers for SBERT embeddings
-sentence-transformers==2.7.0
-
-# PyTorch for the trainable Projection Head neural network
-# (Already installed in tf-gpu environment: torch==2.4.1+cu118)
+# PyTorch (CUDA-enabled)
 torch==2.4.1
+torchvision==0.19.1
 
-# Numerical computing (using versions from tf-gpu env)
+# Transformers & Sentence Transformers
+sentence-transformers==2.7.0
+transformers==4.40.0
+
+# Numerical computing
 numpy==1.24.3
 scipy==1.10.1
 
-# Phase 2: Multi-Agent System
-# ---------------------------
-crewai>=0.28.0
-crewai-tools>=0.1.0
-
-# LLM Providers (Free Tier)
-groq==0.33.0
-
-# Utilities
-# ---------
-# Environment variable management
-python-dotenv==1.0.1
-
-# Beautiful console output
-rich==14.2.0
+# FastAPI for production inference
+fastapi==0.121.1
+uvicorn[standard]==0.30.6
+pydantic==2.10.4
 
 # Training & Evaluation
-# ---------------------
-# Dataset handling
 datasets==3.1.0
-
-# Training monitoring
-tensorboard==2.10.1
-
-# Model training utilities
 scikit-learn==1.3.2
 tqdm==4.67.1
 
-# Backend API
-# -----------
-# FastAPI for REST API
-fastapi==0.121.1
+# Utilities
+python-dotenv==1.0.1
+rich==14.2.0
+
+# LLM Providers (optional for agents - disabled by default)
+groq==0.33.0
+
+# HTTP client
+requests==2.31.0
+httpx==0.27.2
 uvicorn[standard]==0.27.1
 
 # Production Server
