@@ -45,113 +45,55 @@ import numpy as np
 
 class ProjectionHead(nn.Module):
     """
-    MAXIMUM PERFORMANCE Projection Head with BiLSTM + Attention.
+    Simple 2-Layer Dense Projection Head for stable training.
     
     Architecture:
-    Input(384) → BiLSTM(256) → Attention → Dense(512) → BN → ReLU → Dropout →
-    Dense(512) → BN → ReLU → Dropout → Dense(256)
+    Input(384) → Dense(512) → ReLU → Dropout(0.1) → Dense(256)
     
     Features:
-    - Bidirectional LSTM for sequential processing
-    - Self-attention mechanism for feature weighting
-    - Deep dense layers with batch normalization
-    - Proper regularization with dropout
+    - Minimal architecture for GPU stability
+    - Xavier initialization for stable gradients
+    - Light dropout for regularization
     
     Input: SBERT embedding (384-dim)
     Output: Task-specific feature vector FV (256-dim)
     """
 
-    def __init__(self, input_dim: int = 384, lstm_hidden: int = 256, hidden_dim: int = 512, output_dim: int = 256, dropout: float = 0.3):
+    def __init__(self, input_dim: int = 384, hidden_dim: int = 512, output_dim: int = 256, dropout: float = 0.1):
         super().__init__()
         
-        # BiLSTM for temporal/sequential processing
-        self.bilstm = nn.LSTM(input_dim, lstm_hidden, num_layers=2, 
-                             batch_first=True, bidirectional=True, dropout=dropout)
+        # Simple 2-layer dense network
+        self.fc1 = nn.Linear(input_dim, hidden_dim)
+        self.relu = nn.ReLU()
+        self.dropout = nn.Dropout(dropout)
+        self.fc2 = nn.Linear(hidden_dim, output_dim)
         
-        # Attention mechanism
-        self.attention = nn.MultiheadAttention(lstm_hidden * 2, num_heads=4, dropout=dropout, batch_first=True)
-        
-        # Dense layers with enhanced capacity
-        self.fc1 = nn.Linear(lstm_hidden * 2, hidden_dim)
-        self.bn1 = nn.BatchNorm1d(hidden_dim)
-        self.relu1 = nn.ReLU()
-        self.dropout1 = nn.Dropout(dropout)
-        
-        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
-        self.bn2 = nn.BatchNorm1d(hidden_dim)
-        self.relu2 = nn.ReLU()
-        self.dropout2 = nn.Dropout(dropout * 0.67)
-        
-        self.fc3 = nn.Linear(hidden_dim, output_dim)
-
-        # Proper initialization
-        for name, param in self.bilstm.named_parameters():
-            if 'weight' in name:
-                nn.init.orthogonal_(param)
-            elif 'bias' in name:
-                nn.init.zeros_(param)
-        
-        nn.init.kaiming_normal_(self.fc1.weight, mode='fan_out', nonlinearity='relu')
+        # Xavier initialization for stable training
+        nn.init.xavier_uniform_(self.fc1.weight)
         nn.init.zeros_(self.fc1.bias)
-        nn.init.kaiming_normal_(self.fc2.weight, mode='fan_out', nonlinearity='relu')
+        nn.init.xavier_uniform_(self.fc2.weight)
         nn.init.zeros_(self.fc2.bias)
-        nn.init.xavier_uniform_(self.fc3.weight)
-        nn.init.zeros_(self.fc3.bias)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
-        Process embedding through BiLSTM + Attention + Dense layers.
+        Forward pass through the simple projection head.
         
         Args:
-            x: SBERT embedding [batch_size, 384] or [384]
+            x: SBERT embeddings (batch_size, 384)
             
         Returns:
-            Feature vector [batch_size, 256] or [256]
+            Projected features (batch_size, 256)
         """
-        # Handle single embedding (add batch and sequence dimensions)
-        if x.dim() == 1:
-            x = x.unsqueeze(0).unsqueeze(0)  # [1, 1, 384]
-            squeeze_output = True
-        elif x.dim() == 2:
-            x = x.unsqueeze(1)  # [batch, 1, 384]
-            squeeze_output = False
-        else:
-            squeeze_output = False
-        
-        # BiLSTM processing
-        lstm_out, _ = self.bilstm(x)  # [batch, seq, lstm_hidden*2]
-        
-        # Self-attention
-        attn_out, _ = self.attention(lstm_out, lstm_out, lstm_out)  # [batch, seq, lstm_hidden*2]
-        
-        # Pool across sequence dimension
-        pooled = attn_out.mean(dim=1)  # [batch, lstm_hidden*2]
-        
-        # Dense layers
-        x = self.fc1(pooled)
-        x = self.bn1(x)
-        x = self.relu1(x)
-        x = self.dropout1(x)
-        
+        x = self.fc1(x)
+        x = self.relu(x)
+        x = self.dropout(x)
         x = self.fc2(x)
-        x = self.bn2(x)
-        x = self.relu2(x)
-        x = self.dropout2(x)
-        
-        x = self.fc3(x)
-        
-        if squeeze_output:
-            x = x.squeeze(0)
-        
         return x
 
     def get_weight_info(self) -> Dict[str, Any]:
         return {
-            "bilstm_params": sum(p.numel() for p in self.bilstm.parameters()),
-            "attention_params": sum(p.numel() for p in self.attention.parameters()),
             "fc1_shape": tuple(self.fc1.weight.shape),
             "fc2_shape": tuple(self.fc2.weight.shape),
-            "fc3_shape": tuple(self.fc3.weight.shape),
             "total_parameters": sum(p.numel() for p in self.parameters()),
             "trainable": all(p.requires_grad for p in self.parameters())
         }

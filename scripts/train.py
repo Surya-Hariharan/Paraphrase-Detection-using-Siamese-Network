@@ -15,13 +15,12 @@ Usage:
 python train.py --data-path data/train.csv --epochs 10
 """
 
-# Suppress warnings
+# Suppress ALL warnings - must be first
 import warnings
-warnings.filterwarnings('ignore', category=FutureWarning)
-warnings.filterwarnings('ignore', category=UserWarning)
-warnings.filterwarnings('ignore', message='.*RequestsDependencyWarning.*')
+warnings.filterwarnings('ignore')
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+os.environ['PYTHONWARNINGS'] = 'ignore'
 
 import argparse
 from pathlib import Path
