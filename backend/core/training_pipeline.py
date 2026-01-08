@@ -381,8 +381,13 @@ class SiameseTrainer:
         # Training components
         self.criterion = ContrastiveLoss(margin=margin)
         
-        if model.unfreeze_last_sbert_layer:
-            param_groups = model.get_parameter_groups(lr_sbert=1e-5, lr_head=learning_rate)
+        # Use differential learning rates if fully unfreezing SBERT
+        if hasattr(model, 'unfreeze_all') and model.unfreeze_all:
+            # Lower LR for SBERT, higher for projection head
+            param_groups = [
+                {'params': model.sbert_encoder.parameters(), 'lr': learning_rate * 0.1, 'name': 'sbert'},
+                {'params': model.projection_head.parameters(), 'lr': learning_rate, 'name': 'projection_head'}
+            ]
             self.optimizer = optim.AdamW(param_groups, weight_decay=0.01)
         else:
             self.optimizer = optim.AdamW(
@@ -419,31 +424,9 @@ class SiameseTrainer:
                 num_workers=0
             )
         
-        # Training history
-        self.model = model
-        self.train_dataset = train_dataset
-        self.val_dataset = val_dataset
-        self.batch_size = batch_size
-        self.learning_rate = learning_rate
-        self.use_agents = use_agents
-        self.num_epochs = num_epochs
-        # Create checkpoint directory
-        self.checkpoint_dir = Path(checkpoint_dir)
-        self.checkpoint_dir.mkdir(exist_ok=True)
-        # Training components
-        self.criterion = ContrastiveLoss(margin=margin)
-        if model.unfreeze_last_sbert_layer:
-            param_groups = model.get_parameter_groups(lr_sbert=1e-5, lr_head=learning_rate)
-            self.optimizer = optim.AdamW(param_groups, weight_decay=0.01)
-        else:
-            self.optimizer = optim.AdamW(
-                model.get_trainable_parameters(),
-                lr=learning_rate,
-                weight_decay=0.01
-            )
         # Linear warmup + cosine annealing: warmup stabilizes fine-tuning, cosine decay prevents overfitting
         steps_per_epoch = len(train_dataset) // batch_size
-        total_steps = self.num_epochs * steps_per_epoch
+        total_steps = num_epochs * steps_per_epoch
         warmup_steps = int(0.1 * total_steps)  # 10% warmup
         self.scheduler = get_cosine_schedule_with_warmup(
             self.optimizer,

@@ -454,14 +454,15 @@ class TrainableSiameseModel(SiameseProjectionModel):
         """Get parameter groups for differential learning rates."""
         param_groups = []
         
-        if self.unfreeze_last_sbert_layer:
-            last_layer = self.sbert_encoder[0].auto_model.encoder.layer[-1]
+        if self.unfreeze_all:
+            # SBERT with lower learning rate
             param_groups.append({
-                'params': last_layer.parameters(),
+                'params': self.sbert_encoder.parameters(),
                 'lr': lr_sbert,
-                'name': 'sbert_last_layer'
+                'name': 'sbert_encoder'
             })
         
+        # Projection head with higher learning rate
         param_groups.append({
             'params': self.projection_head.parameters(),
             'lr': lr_head,
@@ -480,15 +481,17 @@ class TrainableSiameseModel(SiameseProjectionModel):
 
     def save_model(self, path: str):
         state_dict = {"projection_head": self.projection_head.state_dict()}
-        if self.unfreeze_last_sbert_layer:
-            state_dict["sbert_last_layer"] = self.sbert_encoder[0].auto_model.encoder.layer[-1].state_dict()
+        
+        # Save SBERT if fully unfrozen
+        if self.unfreeze_all:
+            state_dict["sbert_encoder"] = self.sbert_encoder.state_dict()
         
         torch.save(
             {
                 **state_dict,
                 "projection_dim": self.projection_dim,
                 "freeze_sbert": self.freeze_sbert,
-                "unfreeze_last_sbert_layer": self.unfreeze_last_sbert_layer
+                "unfreeze_all": self.unfreeze_all
             },
             path
         )
@@ -496,8 +499,10 @@ class TrainableSiameseModel(SiameseProjectionModel):
     def load_model(self, path: str):
         checkpoint = torch.load(path, map_location=self.device)
         self.projection_head.load_state_dict(checkpoint["projection_head"])
-        if self.unfreeze_last_sbert_layer and "sbert_last_layer" in checkpoint:
-            self.sbert_encoder[0].auto_model.encoder.layer[-1].load_state_dict(checkpoint["sbert_last_layer"])
+        
+        # Load SBERT if it was saved
+        if self.unfreeze_all and "sbert_encoder" in checkpoint:
+            self.sbert_encoder.load_state_dict(checkpoint["sbert_encoder"])
 
     def save_checkpoint(self, path: str, epoch: int, optimizer_state: dict):
         """Save full training checkpoint."""
