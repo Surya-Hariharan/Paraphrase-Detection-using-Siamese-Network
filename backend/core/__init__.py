@@ -13,13 +13,10 @@ from .neural_engine import (
     ContrastiveLoss,
 )
 
-from .document_siamese_pipeline import DocumentLevelSiameseModel
-
 __all__ = [
     "TrainableSiameseModel",
     "ThresholdOptimizer",
     "SiameseProjectionModel",
     "ProjectionHead",
     "ContrastiveLoss",
-    "DocumentLevelSiameseModel",
 ]

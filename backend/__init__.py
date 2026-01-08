@@ -14,24 +14,14 @@ Modules:
 from .core import (
     TrainableSiameseModel,
     ThresholdOptimizer,
-    DocumentLevelSiameseModel,
+    SiameseProjectionModel,
+    ProjectionHead,
+    ContrastiveLoss,
 )
 
-# Optional: Agent modules (requires crewai)
-try:
-    from .agents import (
-        MultiAgentPipeline,
-        MultiAgentTestCaseGenerator,
-    )
-    AGENTS_AVAILABLE = True
-except ImportError:
-    AGENTS_AVAILABLE = False
-    MultiAgentPipeline = None
-    MultiAgentTestCaseGenerator = None
-
-from .utils import (
-    load_document,
-    DocumentProcessor,
+from .core.training_pipeline import (
+    ParaphraseDataset,
+    SiameseTrainer,
 )
 
 __version__ = "1.0.0"
@@ -39,9 +29,10 @@ __version__ = "1.0.0"
 __all__ = [
     "TrainableSiameseModel",
     "ThresholdOptimizer",
-    "DocumentLevelSiameseModel",
-    "MultiAgentPipeline",
-    "MultiAgentTestCaseGenerator",
-    "DocumentLoader",
+    "SiameseProjectionModel",
+    "ProjectionHead",
+    "ContrastiveLoss",
+    "ParaphraseDataset",
+    "SiameseTrainer",
     "DocumentProcessor",
 ]

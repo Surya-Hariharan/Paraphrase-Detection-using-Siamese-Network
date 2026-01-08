@@ -1,27 +1,11 @@
 """
-Utility modules for document processing and configuration.
+Utility modules for configuration.
 
-This module contains helper functions and classes for document loading,
-processing, and quick comparisons.
+This module contains helper functions and classes.
 """
 
-from .document_loader import (
-    load_document,
-    load_text_file,
-    load_pdf_file,
-    load_two_documents_from_folder,
-    clean_text,
-    get_document_info,
-)
-from .document_processor import DocumentProcessor, DocumentPairProcessor
+from .config import Config
 
 __all__ = [
-    "load_document",
-    "load_text_file",
-    "load_pdf_file",
-    "load_two_documents_from_folder",
-    "clean_text",
-    "get_document_info",
-    "DocumentProcessor",
-    "DocumentPairProcessor",
+    "Config",
 ]

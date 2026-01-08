@@ -34,7 +34,6 @@ from transformers import get_cosine_schedule_with_warmup
 
 # Our modules
 from .neural_engine import TrainableSiameseModel, ContrastiveLoss
-from ..utils.document_processor import DocumentProcessor
 from dotenv import load_dotenv
 
 # No agent dependencies required
