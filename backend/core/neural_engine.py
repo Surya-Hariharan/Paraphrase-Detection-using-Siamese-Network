@@ -502,8 +502,10 @@ class TrainableSiameseModel(SiameseProjectionModel):
     def save_checkpoint(self, path: str, epoch: int, optimizer_state: dict):
         """Save full training checkpoint."""
         state_dict = {"projection_head": self.projection_head.state_dict()}
-        if self.unfreeze_last_sbert_layer:
-            state_dict["sbert_last_layer"] = self.sbert_encoder[0].auto_model.encoder.layer[-1].state_dict()
+        
+        # Save all SBERT parameters if fully unfrozen
+        if self.unfreeze_all:
+            state_dict["sbert_encoder"] = self.sbert_encoder.state_dict()
         
         torch.save(
             {
@@ -511,7 +513,7 @@ class TrainableSiameseModel(SiameseProjectionModel):
                 **state_dict,
                 "projection_dim": self.projection_dim,
                 "freeze_sbert": self.freeze_sbert,
-                "unfreeze_last_sbert_layer": self.unfreeze_last_sbert_layer,
+                "unfreeze_all": self.unfreeze_all,
                 "optimizer_state": optimizer_state
             },
             path
@@ -521,8 +523,11 @@ class TrainableSiameseModel(SiameseProjectionModel):
         """Load training checkpoint."""
         checkpoint = torch.load(path, map_location=self.device)
         self.projection_head.load_state_dict(checkpoint["projection_head"])
-        if self.unfreeze_last_sbert_layer and "sbert_last_layer" in checkpoint:
-            self.sbert_encoder[0].auto_model.encoder.layer[-1].load_state_dict(checkpoint["sbert_last_layer"])
+        
+        # Load SBERT parameters if they were saved
+        if self.unfreeze_all and "sbert_encoder" in checkpoint:
+            self.sbert_encoder.load_state_dict(checkpoint["sbert_encoder"])
+        
         return checkpoint.get("epoch", 0), checkpoint.get("optimizer_state", None)
     
     def _verify_freezing_status(self):
@@ -535,5 +540,12 @@ class TrainableSiameseModel(SiameseProjectionModel):
         print(f"\n=== Parameter Status ===")
         print(f"SBERT: {sbert_params:,} total, {sbert_trainable:,} trainable")
         print(f"Projection Head: {projection_params:,} total, {projection_trainable:,} trainable")
-        print(f"SBERT frozen: {sbert_trainable == 0 or (self.unfreeze_last_sbert_layer and sbert_trainable < sbert_params)}")
+        
+        if self.freeze_sbert:
+            print(f"SBERT Status: ❄️  FROZEN (all parameters frozen)")
+        elif self.unfreeze_all:
+            print(f"SBERT Status: 🔥 FULLY UNFROZEN ({sbert_trainable:,} / {sbert_params:,} trainable)")
+        else:
+            print(f"SBERT Status: ⚡ PARTIALLY UNFROZEN ({sbert_trainable:,} / {sbert_params:,} trainable)")
+        
         print(f"========================\n")
