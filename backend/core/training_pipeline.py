@@ -462,18 +462,58 @@ class SiameseTrainer:
             drop_last=True
         )
         
+        if val_dataset is not None:
+            self.val_loader = DataLoader(
+                val_dataset,
+                batch_size=batch_size,
+                shuffle=False,
+                num_workers=0
+            )
+        else:
+            self.val_loader = None
+        
+        # Training history
+        self.history = {
+            'train_loss': [],
+            'train_acc': [],
+            'val_loss': [],
+            'val_acc': []
+        }
+        
+        # Initialize agents if enabled
+        if use_agents:
+            from backend.agents.agent_crew import TrainingAgents
+            self.agents = TrainingAgents()
+        else:
+            self.agents = None
+    
+    def compute_dataset_stats(self):
+        """Compute statistics about the dataset."""
+        labels = []
+        lengths_a = []
+        lengths_b = []
+        
+        # Sample from dataset to compute stats
+        for i, item in enumerate(self.train_dataset):
+            if i >= 1000:  # Sample first 1000 for efficiency
+                break
+            labels.append(int(item['label']))
+            lengths_a.append(len(item['text_a']))
+            lengths_b.append(len(item['text_b']))
+        
         positive_count = sum(labels)
         total_count = len(labels)
         
         return {
-            'total_examples': total_count,
+            'total_examples': len(self.train_dataset),
+            'sampled_examples': total_count,
             'positive_examples': positive_count,
             'negative_examples': total_count - positive_count,
             'positive_ratio': positive_count / total_count if total_count > 0 else 0,
-            'avg_length_a': np.mean(lengths_a),
-            'avg_length_b': np.mean(lengths_b),
-            'std_length_a': np.std(lengths_a),
-            'std_length_b': np.std(lengths_b)
+            'avg_length_a': np.mean(lengths_a) if lengths_a else 0,
+            'avg_length_b': np.mean(lengths_b) if lengths_b else 0,
+            'std_length_a': np.std(lengths_a) if lengths_a else 0,
+            'std_length_b': np.std(lengths_b) if lengths_b else 0
         }
     
     def validate_data_with_agent(self):
