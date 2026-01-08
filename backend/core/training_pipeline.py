@@ -355,7 +355,8 @@ class SiameseTrainer:
         learning_rate: float = 1e-4,
         margin: float = 1.0,
         use_agents: bool = True,
-        checkpoint_dir: str = "./checkpoints"
+        checkpoint_dir: str = "./checkpoints",
+        num_epochs: int = 10
     ):
         """
         Initialize trainer.
@@ -423,43 +424,43 @@ class SiameseTrainer:
             )
         
         # Training history
-        self.history = {
-            'train_loss': [],
-            'val_loss': [],
-            'train_acc': [],
-            'val_acc': [],
-            'learning_rates': []
-        }
-        
-        # AI Agents
-        if use_agents:
-            if not CREWAI_AVAILABLE:
-                print("⚠️  CrewAI not available. Training without AI agents.")
-                self.agents = None
-            else:
-                try:
-                    self.agents = TrainingAgents()
-                    print("✓ AI Training Agents initialized")
-                except Exception as e:
-                    print(f"⚠️  Could not initialize agents: {e}")
-                    print("Continuing training without AI agents.")
-                    self.agents = None
+        self.model = model
+        self.train_dataset = train_dataset
+        self.val_dataset = val_dataset
+        self.batch_size = batch_size
+        self.learning_rate = learning_rate
+        self.use_agents = use_agents
+        self.num_epochs = num_epochs
+        # Create checkpoint directory
+        self.checkpoint_dir = Path(checkpoint_dir)
+        self.checkpoint_dir.mkdir(exist_ok=True)
+        # Training components
+        self.criterion = ContrastiveLoss(margin=margin)
+        if model.unfreeze_last_sbert_layer:
+            param_groups = model.get_parameter_groups(lr_sbert=1e-5, lr_head=learning_rate)
+            self.optimizer = optim.AdamW(param_groups, weight_decay=0.01)
         else:
-            self.agents = None
-    
-    def compute_dataset_stats(self) -> Dict[str, Any]:
-        """Compute statistics about the training dataset."""
-        # Handle both Dataset and Subset
-        if hasattr(self.train_dataset, 'examples'):
-            examples = self.train_dataset.examples
-        elif hasattr(self.train_dataset, 'dataset'):
-            examples = self.train_dataset.dataset.examples
-        else:
-            raise ValueError("Cannot access examples from dataset")
-        
-        labels = [ex['label'] for ex in examples]
-        lengths_a = [len(str(ex['text_a'])) for ex in examples]
-        lengths_b = [len(str(ex['text_b'])) for ex in examples]
+            self.optimizer = optim.AdamW(
+                model.get_trainable_parameters(),
+                lr=learning_rate,
+                weight_decay=0.01
+            )
+        # Linear warmup + cosine annealing: warmup stabilizes fine-tuning, cosine decay prevents overfitting
+        steps_per_epoch = len(train_dataset) // batch_size
+        total_steps = self.num_epochs * steps_per_epoch
+        warmup_steps = int(0.1 * total_steps)  # 10% warmup
+        self.scheduler = get_cosine_schedule_with_warmup(
+            self.optimizer,
+            num_warmup_steps=warmup_steps,
+            num_training_steps=total_steps
+        )
+        # Data loaders
+        self.train_loader = DataLoader(
+            train_dataset,
+            batch_size=batch_size,
+            shuffle=True,
+            drop_last=True
+        )
         
         positive_count = sum(labels)
         total_count = len(labels)

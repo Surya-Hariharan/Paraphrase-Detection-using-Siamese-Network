@@ -320,7 +320,8 @@ def main():
         batch_size=args.batch_size,
         learning_rate=args.learning_rate,
         margin=args.margin,
-        use_agents=args.use_agents
+        use_agents=args.use_agents,
+        num_epochs=args.epochs
     )
     
     console.print("Trainer initialized", style="green")
