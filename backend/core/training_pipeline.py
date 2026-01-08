@@ -477,13 +477,20 @@ class SiameseTrainer:
             'train_loss': [],
             'train_acc': [],
             'val_loss': [],
-            'val_acc': []
+            'val_acc': [],
+            'learning_rates': []
         }
         
         # Initialize agents if enabled
         if use_agents:
-            from backend.agents.agent_crew import TrainingAgents
-            self.agents = TrainingAgents()
+            try:
+                from backend.agents.agent_crew import TrainingAgents
+                self.agents = TrainingAgents()
+            except (ImportError, ModuleNotFoundError) as e:
+                print(f"\n⚠️  Warning: AI agents disabled due to missing dependencies: {e}")
+                print("   To enable agents, install crewai with Python >=3.10")
+                print("   Training will continue without agent supervision.\n")
+                self.agents = None
         else:
             self.agents = None
     

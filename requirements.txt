@@ -16,10 +16,10 @@ torch==2.4.1
 numpy==1.24.3
 scipy==1.10.1
 
-# Phase 2: Multi-Agent System (Optional - commented out for now)
+# Phase 2: Multi-Agent System
 # ---------------------------
-# crewai>=0.28.0
-# crewai-tools>=0.1.0
+crewai>=0.28.0
+crewai-tools>=0.1.0
 
 # LLM Providers (Free Tier)
 groq==0.33.0
