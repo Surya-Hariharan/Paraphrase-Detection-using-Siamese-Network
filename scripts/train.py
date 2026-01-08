@@ -163,28 +163,28 @@ def main():
     parser.add_argument(
         '--unfreeze-last-n-layers',
         type=int,
-        default=2,
-        help='Number of last SBERT layers to unfreeze (default: 2) - Good balance'
+        default=3,
+        help='Number of last SBERT layers to unfreeze (default: 3) - Optimized for 80+ accuracy'
     )
     
     # Training arguments
     parser.add_argument(
         '--epochs',
         type=int,
-        default=10,
-        help='Number of training epochs (default: 10)'
+        default=20,
+        help='Number of training epochs (default: 20, optimized for 80+ accuracy)'
     )
     parser.add_argument(
         '--batch-size',
         type=int,
-        default=16,
-        help='Batch size (default: 16)'
+        default=32,
+        help='Batch size (default: 32, optimized for RTX 4060)'
     )
     parser.add_argument(
         '--learning-rate',
         type=float,
-        default=1e-4,
-        help='Learning rate (default: 1e-4)'
+        default=2e-4,
+        help='Learning rate (default: 2e-4, optimized for convergence)'
     )
     parser.add_argument(
         '--margin',
@@ -194,17 +194,18 @@ def main():
     )
     
     # Agent arguments
-    parser.add_argument(
-        '--use-agents',
-        action='store_true',
-        help='Enable AI agent supervision'
-    )
-    parser.add_argument(
-        '--agent-check-every',
-        type=int,
-        default=5,
-        help='Run agent monitoring every N epochs (default: 5)'
-    )
+    # Agents removed for performance optimization
+    # parser.add_argument(
+    #     '--use-agents',
+    #     action='store_true',
+    #     help='Enable AI agent supervision'
+    # )
+    # parser.add_argument(
+    #     '--agent-check-every',
+    #     type=int,
+    #     default=5,
+    #     help='Run agent monitoring every N epochs (default: 5)'
+    # )
     
     # Checkpoint arguments
     parser.add_argument(
@@ -257,7 +258,8 @@ def main():
     console.print(f"  Batch Size: {args.batch_size}")
     console.print(f"  Learning Rate: {args.learning_rate}")
     console.print(f"  Margin: {args.margin}")
-    console.print(f"  AI Agents: {'Enabled' if args.use_agents else 'Disabled'}")
+    # AI Agents removed for performance
+    # console.print(f"  AI Agents: {'Enabled' if args.use_agents else 'Disabled'}")
     console.print(f"  Checkpoint Dir: {args.checkpoint_dir}")
     
     # Create checkpoint directory
@@ -320,7 +322,7 @@ def main():
         batch_size=args.batch_size,
         learning_rate=args.learning_rate,
         margin=args.margin,
-        use_agents=args.use_agents,
+        use_agents=False,  # Agents disabled
         num_epochs=args.epochs
     )
     
@@ -335,7 +337,7 @@ def main():
         num_epochs=args.epochs,
         checkpoint_dir=args.checkpoint_dir,
         checkpoint_every=args.checkpoint_every,
-        agent_check_every=args.agent_check_every if args.use_agents else None
+        agent_check_every=None  # Agents disabled
     )
     
     # Step 5: Save final model

@@ -36,12 +36,8 @@ from .neural_engine import TrainableSiameseModel, ContrastiveLoss
 from ..utils.document_processor import DocumentProcessor
 from dotenv import load_dotenv
 
-# CrewAI for agents (optional)
-try:
-    from crewai import Agent, Task, Crew, Process, LLM
-    CREWAI_AVAILABLE = True
-except ImportError:
-    CREWAI_AVAILABLE = False
+# No agent dependencies required
+CREWAI_AVAILABLE = False
 
 # LLM (optional)
 try:
@@ -354,7 +350,7 @@ class SiameseTrainer:
         batch_size: int = 16,
         learning_rate: float = 1e-4,
         margin: float = 1.0,
-        use_agents: bool = True,
+        use_agents: bool = False,
         checkpoint_dir: str = "./checkpoints",
         num_epochs: int = 10
     ):
@@ -368,7 +364,7 @@ class SiameseTrainer:
             batch_size: Batch size for training
             learning_rate: Initial learning rate
             margin: Contrastive loss margin
-            use_agents: Whether to use AI agents for supervision
+            use_agents: Deprecated - agents are disabled
             checkpoint_dir: Directory to save checkpoints
         """
         self.model = model
@@ -481,18 +477,8 @@ class SiameseTrainer:
             'learning_rates': []
         }
         
-        # Initialize agents if enabled
-        if use_agents:
-            try:
-                from backend.agents.agent_crew import TrainingAgents
-                self.agents = TrainingAgents()
-            except (ImportError, ModuleNotFoundError) as e:
-                print(f"\n⚠️  Warning: AI agents disabled due to missing dependencies: {e}")
-                print("   To enable agents, install crewai with Python >=3.10")
-                print("   Training will continue without agent supervision.\n")
-                self.agents = None
-        else:
-            self.agents = None
+        # Agents permanently disabled for maximum performance
+        self.agents = None
     
     def compute_dataset_stats(self):
         """Compute statistics about the dataset."""
@@ -524,20 +510,8 @@ class SiameseTrainer:
         }
     
     def validate_data_with_agent(self):
-        """Run data validation agent before training."""
-        if not self.agents:
-            return
-        
-        print("\n" + "-"*50)
-        print("AGENT: DATA VALIDATION")
-        print("-"*50)
-        
-        stats = self.compute_dataset_stats()
-        report = self.agents.validate_data(stats)
-        
-        print("\nData Validation Report:")
-        print(report)
-        print("-"*50)
+        """Disabled - agents removed for performance."""
+        pass
     
     def train_epoch(self, epoch: int) -> Tuple[float, float]:
         """

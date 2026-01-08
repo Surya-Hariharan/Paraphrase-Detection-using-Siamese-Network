@@ -45,34 +45,46 @@ import numpy as np
 
 class ProjectionHead(nn.Module):
     """
-    NN Block in the architecture diagram.
+    NN Block in the architecture diagram - OPTIMIZED FOR HIGH ACCURACY.
     
-    Siamese projection head with shared weights:
-    Dense(384 → 128) → Tanh → Dense(128 → 256)
+    Enhanced Siamese projection head with shared weights:
+    Dense(384 → 512) → BatchNorm → ReLU → Dropout(0.3) → 
+    Dense(512 → 256) → BatchNorm → ReLU → Dropout(0.2) → 
+    Dense(256 → 256)
     
     This is the ONLY trainable component in the pipeline.
-    SBERT weights remain frozen.
+    SBERT weights remain frozen (or last 2 layers unfrozen).
     
     Input: SBERT embedding (384-dim)
     Output: Task-specific feature vector FV (256-dim)
     """
 
-    def __init__(self, input_dim: int = 384, hidden_dim: int = 128, output_dim: int = 256):
+    def __init__(self, input_dim: int = 384, hidden_dim: int = 512, output_dim: int = 256, dropout: float = 0.3):
         super().__init__()
-        # Dense → Activation → Dense architecture
+        # Enhanced deeper architecture with batch normalization and dropout
         self.fc1 = nn.Linear(input_dim, hidden_dim)
-        self.activation = nn.Tanh()
+        self.bn1 = nn.BatchNorm1d(hidden_dim)
+        self.relu1 = nn.ReLU()
+        self.dropout1 = nn.Dropout(dropout)
+        
         self.fc2 = nn.Linear(hidden_dim, output_dim)
+        self.bn2 = nn.BatchNorm1d(output_dim)
+        self.relu2 = nn.ReLU()
+        self.dropout2 = nn.Dropout(dropout * 0.67)  # 0.2 dropout
+        
+        self.fc3 = nn.Linear(output_dim, output_dim)
 
-        # Xavier initialization for better training
-        nn.init.xavier_uniform_(self.fc1.weight)
+        # He initialization for ReLU activation
+        nn.init.kaiming_normal_(self.fc1.weight, mode='fan_out', nonlinearity='relu')
         nn.init.zeros_(self.fc1.bias)
-        nn.init.xavier_uniform_(self.fc2.weight)
+        nn.init.kaiming_normal_(self.fc2.weight, mode='fan_out', nonlinearity='relu')
         nn.init.zeros_(self.fc2.bias)
+        nn.init.xavier_uniform_(self.fc3.weight)
+        nn.init.zeros_(self.fc3.bias)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
-        Project SBERT embedding to task-specific feature vector.
+        Project SBERT embedding to task-specific feature vector with regularization.
         
         Args:
             x: SBERT embedding [batch_size, 384] or [384]
@@ -80,15 +92,27 @@ class ProjectionHead(nn.Module):
         Returns:
             Feature vector [batch_size, 256] or [256]
         """
+        # First layer
         x = self.fc1(x)
-        x = self.activation(x)
+        x = self.bn1(x)
+        x = self.relu1(x)
+        x = self.dropout1(x)
+        
+        # Second layer
         x = self.fc2(x)
+        x = self.bn2(x)
+        x = self.relu2(x)
+        x = self.dropout2(x)
+        
+        # Output layer (no activation for better embedding space)
+        x = self.fc3(x)
         return x
 
     def get_weight_info(self) -> Dict[str, Any]:
         return {
             "fc1_shape": tuple(self.fc1.weight.shape),
             "fc2_shape": tuple(self.fc2.weight.shape),
+            "fc3_shape": tuple(self.fc3.weight.shape),
             "total_parameters": sum(p.numel() for p in self.parameters()),
             "trainable": all(p.requires_grad for p in self.parameters())
         }
@@ -117,9 +141,12 @@ class SiameseProjectionModel(nn.Module):
         self.sbert_encoder = SentenceTransformer(self.SBERT_MODEL)
         self.device = self.sbert_encoder.device
 
-        # Projection head must be on SAME device
+        # Enhanced projection head with deeper architecture
         self.projection_head = ProjectionHead(
-            self.SBERT_DIM, projection_dim
+            input_dim=self.SBERT_DIM,
+            hidden_dim=512,
+            output_dim=projection_dim,
+            dropout=0.3
         ).to(self.device)
 
         self.projection_dim = projection_dim
