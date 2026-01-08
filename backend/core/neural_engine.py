@@ -180,13 +180,12 @@ class SiameseProjectionModel(nn.Module):
         self.sbert_encoder = SentenceTransformer(self.SBERT_MODEL)
         self.device = self.sbert_encoder.device
 
-        # Enhanced projection head with BiLSTM + Attention
+        # Simple projection head
         self.projection_head = ProjectionHead(
             input_dim=self.SBERT_DIM,
-            lstm_hidden=256,
             hidden_dim=512,
             output_dim=projection_dim,
-            dropout=0.3
+            dropout=0.1
         ).to(self.device)
 
         self.projection_dim = projection_dim

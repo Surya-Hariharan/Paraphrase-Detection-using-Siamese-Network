@@ -23,7 +23,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
-from torch.cuda.amp import autocast, GradScaler  # Mixed precision training
+from torch.amp import autocast, GradScaler  # Mixed precision training
 from typing import List, Dict, Any, Tuple, Optional
 from tqdm import tqdm
 import numpy as np
@@ -462,7 +462,7 @@ class SiameseTrainer:
         
         # Mixed precision training for 2x speedup
         self.use_amp = torch.cuda.is_available()
-        self.scaler = GradScaler() if self.use_amp else None
+        self.scaler = GradScaler('cuda') if self.use_amp else None
         
         if self.use_amp:
             print("✓ Mixed precision training (AMP) enabled for 2x speedup")
@@ -527,7 +527,7 @@ class SiameseTrainer:
             self.optimizer.zero_grad()
             
             if self.use_amp:
-                with autocast():
+                with autocast('cuda'):
                     embeddings_a, embeddings_b = self.model.forward_batch(texts_a, texts_b)
                     loss = self.criterion(embeddings_a, embeddings_b, labels)
                 

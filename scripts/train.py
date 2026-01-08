@@ -7,14 +7,21 @@ Complete training pipeline for Siamese Network paraphrase detection.
 This script demonstrates the full workflow:
 1. Load/create dataset
 2. Initialize Siamese model
-3. Train with AI agent supervision
-4. Test with AI agent analysis
-5. Save trained model
+3. Train with proper metrics
+4. Save trained model
 
 Usage:
 ------
-python train.py --data-path data/train.csv --epochs 10 --use-agents
+python train.py --data-path data/train.csv --epochs 10
 """
+
+# Suppress warnings
+import warnings
+warnings.filterwarnings('ignore', category=FutureWarning)
+warnings.filterwarnings('ignore', category=UserWarning)
+warnings.filterwarnings('ignore', message='.*RequestsDependencyWarning.*')
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 import argparse
 from pathlib import Path
@@ -22,7 +29,6 @@ from typing import Optional, Tuple
 import torch
 from torch.utils.data import random_split
 import sys
-import os
 
 # Add parent directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -239,9 +245,9 @@ def main():
         console.print(f"  Expected Accuracy: ~72% (baseline)")
     else:
         console.print(f"  SBERT Strategy: 🔥 FULL FINE-TUNING (ALL 6 LAYERS)")
-        console.print(f"  Architecture: BiLSTM(256) + Attention(4 heads) + Dense(512→256)")
+        console.print(f"  Architecture: SBERT → Dense(512) → Dense(256) → Cosine Similarity")
         console.print(f"  Expected Accuracy: 80%+ (MAXIMUM PERFORMANCE)")
-        console.print(f"  GPU Memory: ~6-8GB (RTX 4060 optimized)")
+        console.print(f"  GPU Memory: ~4-6GB")
     
     console.print(f"  Epochs: {args.epochs}")
     console.print(f"  Batch Size: {args.batch_size}")
@@ -282,8 +288,7 @@ def main():
         projection_params = sum(p.numel() for p in model.projection_head.parameters())
         console.print(f"\n[bold]Trainable Breakdown:[/bold]")
         console.print(f"  SBERT Encoder (ALL 6 layers): {sbert_params:,} 🔥")
-        console.print(f"  BiLSTM + Attention: {projection_params // 2:,}")
-        console.print(f"  Dense Layers: {projection_params // 2:,}")
+        console.print(f"  Projection Head (Dense layers): {projection_params:,}")
     
     console.print(f"\n✓ Model initialized with MAXIMUM capacity", style="green bold")
     
