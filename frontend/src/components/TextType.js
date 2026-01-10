@@ -1,4 +1,7 @@
+'use client';
+
 import { useEffect, useRef, useState, createElement, useMemo, useCallback } from 'react';
+import { gsap } from 'gsap';
 import './TextType.css';
 
 const TextType = ({
@@ -63,8 +66,14 @@ const TextType = ({
 
   useEffect(() => {
     if (showCursor && cursorRef.current) {
-      // CSS-based cursor blink for better performance
-      cursorRef.current.style.animation = `blink ${cursorBlinkDuration * 2}s infinite`;
+      gsap.set(cursorRef.current, { opacity: 1 });
+      gsap.to(cursorRef.current, {
+        opacity: 0,
+        duration: cursorBlinkDuration,
+        repeat: -1,
+        yoyo: true,
+        ease: 'power2.inOut'
+      });
     }
   }, [showCursor, cursorBlinkDuration]);
 
