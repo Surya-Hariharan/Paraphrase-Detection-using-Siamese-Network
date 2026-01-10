@@ -36,15 +36,17 @@ from transformers import get_cosine_schedule_with_warmup
 from .neural_engine import TrainableSiameseModel, ContrastiveLoss
 from dotenv import load_dotenv
 
-# No agent dependencies required
-CREWAI_AVAILABLE = False
-
-# LLM (optional)
+# Agent system
 try:
-    from langchain_groq import ChatGroq
-    GROQ_AVAILABLE = True
+    from backend.agents import (
+        DataValidationAgent,
+        TrainingMonitorAgent,
+        InferenceValidatorAgent,
+        AgentConfig
+    )
+    AGENTS_AVAILABLE = True
 except ImportError:
-    GROQ_AVAILABLE = False
+    AGENTS_AVAILABLE = False
 
 load_dotenv()
 
@@ -319,14 +321,6 @@ Analyze the training progress of a Siamese Network for paraphrase detection:
             result = crew.kickoff()
             return str(result)
 
-else:
-    # Dummy class when CrewAI not available
-    class TrainingAgents:
-        """Dummy class - CrewAI not available."""
-        def __init__(self, provider: str = "groq"):
-            raise ImportError("CrewAI not available. Install with: pip install crewai")
-
-
 # ============================================================
 # Trainer Class
 # ============================================================
@@ -373,6 +367,21 @@ class SiameseTrainer:
         self.batch_size = batch_size
         self.learning_rate = learning_rate
         self.use_agents = use_agents
+        
+        # Initialize AI Agents if available and enabled
+        self.agents_enabled = use_agents and AGENTS_AVAILABLE
+        if self.agents_enabled:
+            try:
+                agent_config = AgentConfig(provider="gemini", enable_logging=True)
+                self.data_validator = DataValidationAgent(agent_config)
+                self.training_monitor = TrainingMonitorAgent(agent_config)
+                print("✓ AI Agents initialized (Gemini-powered)")
+            except Exception as e:
+                print(f"⚠️  AI Agents disabled: {str(e)}")
+                self.agents_enabled = False
+        else:
+            self.data_validator = None
+            self.training_monitor = None
         
         # Create checkpoint directory
         self.checkpoint_dir = Path(checkpoint_dir)
@@ -649,32 +658,6 @@ class SiameseTrainer:
         
         return avg_loss, accuracy
     
-    def monitor_with_agent(self, epoch: int):
-        """Run training monitor agent."""
-        if not self.agents or epoch < 2:  # Need at least 2 epochs of data
-            return
-        
-        print("\n" + "-"*50)
-        print(f"AGENT: TRAINING MONITORING (Epoch {epoch})")
-        print("-"*50)
-        
-        training_stats = {
-            'current_epoch': epoch,
-            'total_epochs': epoch,  # Unknown total
-            'train_loss_history': self.history['train_loss'][-5:],  # Last 5 epochs
-            'val_loss_history': self.history['val_loss'][-5:] if self.history['val_loss'] else None,
-            'train_accuracy': self.history['train_acc'][-1] if self.history['train_acc'] else None,
-            'val_accuracy': self.history['val_acc'][-1] if self.history['val_acc'] else None,
-            'learning_rate': self.optimizer.param_groups[0]['lr'],
-            'batch_size': self.batch_size
-        }
-        
-        report = self.agents.monitor_training(training_stats)
-        
-        print("\nTraining Monitor Report:")
-        print(report)
-        print("-"*50)
-    
     def train(
         self,
         num_epochs: int,
@@ -727,8 +710,29 @@ class SiameseTrainer:
                 
                 print(f"Validation - Loss: {val_loss:.4f}, Accuracy: {val_acc:.4f}")
                 
-                # Learning rate scheduling
-                self.scheduler.step(val_loss)
+                # Agent monitoring (after each epoch if enabled)
+                if self.agents_enabled and self.training_monitor:
+                    monitor_result = self.training_monitor.monitor_epoch(
+                        epoch=epoch,
+                        train_loss=train_loss,
+                        val_loss=val_loss,
+                        train_acc=train_acc,
+                        val_acc=val_acc
+                    )
+                    
+                    if monitor_result["warnings"]:
+                        print(f"\n🤖 AI Agent Warnings:")
+                        for warning in monitor_result["warnings"]:
+                            print(f"   ⚠️  {warning}")
+                    
+                    if monitor_result["suggestions"]:
+                        print(f"\n💡 AI Agent Suggestions:")
+                        for suggestion in monitor_result["suggestions"][:3]:  # Top 3
+                            print(f"   • {suggestion}")
+                    
+                    if monitor_result["should_stop"]:
+                        print("\n🛑 AI Agent recommends stopping training!")
+                        break
                 
                 # Save best model
                 if val_loss < best_val_loss:
@@ -749,10 +753,6 @@ class SiameseTrainer:
                     epoch,
                     self.optimizer.state_dict()
                 )
-            
-            # Agent monitoring
-            if self.agents and agent_check_every and epoch % agent_check_every == 0:
-                self.monitor_with_agent(epoch)
         
         print("\n" + "-"*50)
         print("TRAINING COMPLETE!")

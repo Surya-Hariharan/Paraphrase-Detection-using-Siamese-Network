@@ -21,6 +21,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from backend.core.neural_engine import TrainableSiameseModel
 
+# Try to load AI agents
+try:
+    from backend.agents import InferenceValidatorAgent, AgentConfig
+    AGENTS_AVAILABLE = True
+except ImportError:
+    AGENTS_AVAILABLE = False
+
 # Initialize FastAPI app
 app = FastAPI(
     title="Paraphrase Detection API",
@@ -37,19 +44,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load model globally
+# Load model and agent globally
 MODEL_PATH = "checkpoints/best_model.pt"
 model = None
+inference_agent = None
 
 @app.on_event("startup")
 async def load_model():
-    """Load the trained model on startup."""
-    global model
+    """Load the trained model and AI agent on startup."""
+    global model, inference_agent
+    
+    # Load model
     try:
         model = TrainableSiameseModel(
             projection_dim=256,
-            unfreeze_last_sbert_layer=True,
-            unfreeze_last_n_layers=6  # Entire model unfrozen
+            unfreeze_all=True
         )
         model.load_checkpoint(MODEL_PATH)
         model.eval()
@@ -57,18 +66,30 @@ async def load_model():
     except Exception as e:
         print(f"⚠️  Warning: Could not load model: {e}")
         print("   API will start but predictions will fail until model is trained.")
+    
+    # Load AI agent
+    if AGENTS_AVAILABLE:
+        try:
+            agent_config = AgentConfig(provider="gemini", enable_logging=True)
+            inference_agent = InferenceValidatorAgent(agent_config, confidence_threshold=0.7)
+            print("✓ AI Inference Validator loaded (Gemini-powered)")
+        except Exception as e:
+            print(f"⚠️  AI Agent disabled: {str(e)}")
+            inference_agent = None
 
 # Request/Response models
 class PairRequest(BaseModel):
     text_a: str = Field(..., description="First text to compare", min_length=1)
     text_b: str = Field(..., description="Second text to compare", min_length=1)
     threshold: Optional[float] = Field(0.8, description="Similarity threshold (0.0-1.0)", ge=0.0, le=1.0)
+    use_agent: Optional[bool] = Field(True, description="Use AI agent validation for edge cases")
 
 class PairResponse(BaseModel):
     similarity: float = Field(..., description="Cosine similarity score")
     is_paraphrase: bool = Field(..., description="Whether texts are paraphrases")
     threshold: float = Field(..., description="Threshold used")
     confidence: float = Field(..., description="Confidence score (0.0-1.0)")
+    agent_validation: Optional[Dict] = Field(None, description="AI agent validation results")
 
 class HealthResponse(BaseModel):
     status: str
@@ -103,10 +124,10 @@ async def compare_texts(request: PairRequest):
     Compare two texts and determine if they are paraphrases.
     
     Args:
-        request: PairRequest containing text_a, text_b, and optional threshold
+        request: PairRequest containing text_a, text_b, threshold, and use_agent flag
     
     Returns:
-        PairResponse with similarity score and paraphrase prediction
+        PairResponse with similarity score, prediction, and optional agent validation
     """
     if model is None:
         raise HTTPException(
@@ -115,7 +136,7 @@ async def compare_texts(request: PairRequest):
         )
     
     try:
-        # Get similarity score
+        # Get similarity score from model
         result = model.calculate_similarity(request.text_a, request.text_b)
         
         similarity = float(result['similarity'])
@@ -125,11 +146,37 @@ async def compare_texts(request: PairRequest):
         confidence = abs(similarity - request.threshold) / (1.0 - request.threshold) if is_paraphrase else abs(request.threshold - similarity) / request.threshold
         confidence = min(1.0, max(0.0, confidence))
         
+        # AI Agent validation (if enabled)
+        agent_validation = None
+        if request.use_agent and inference_agent is not None:
+            prediction = 1 if is_paraphrase else 0
+            validation_result = inference_agent.validate_prediction(
+                text_a=request.text_a,
+                text_b=request.text_b,
+                prediction=prediction,
+                confidence=confidence,
+                similarity_score=similarity
+            )
+            
+            # Include relevant agent info
+            agent_validation = {
+                "validated": validation_result["validated"],
+                "flags": validation_result["flags"],
+                "suggested_action": validation_result["suggested_action"]
+            }
+            
+            # If agent suggests human review, add that info
+            if "llm_prediction" in validation_result:
+                agent_validation["llm_prediction"] = validation_result["llm_prediction"]
+                agent_validation["llm_confidence"] = validation_result["llm_confidence"]
+                agent_validation["llm_reasoning"] = validation_result["llm_reasoning"]
+        
         return PairResponse(
             similarity=similarity,
             is_paraphrase=is_paraphrase,
             threshold=request.threshold,
-            confidence=confidence
+            confidence=confidence,
+            agent_validation=agent_validation
         )
     
     except Exception as e:

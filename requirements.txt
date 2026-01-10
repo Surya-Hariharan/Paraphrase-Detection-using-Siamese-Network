@@ -30,6 +30,7 @@ rich==14.2.0
 
 # LLM Providers (optional for agents - disabled by default)
 groq==0.33.0
+google-generativeai==0.8.3  # For Gemini AI agents
 
 # HTTP client
 requests==2.31.0
