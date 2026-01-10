@@ -47,6 +47,11 @@ services:
 
   # ===========================================================================
   # FRONTEND SERVICE
+  # ===========================================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     container_name: paraphrase-frontend
     ports:
       - "3000:3000"
@@ -104,8 +109,6 @@ networks:
 # =============================================================================
 volumes:
   redis-data:
-  postgres-data:
-
     driver: local
   postgres-data:
     driver: local
