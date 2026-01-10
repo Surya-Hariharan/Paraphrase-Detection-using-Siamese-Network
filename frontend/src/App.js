@@ -7,7 +7,7 @@ import './index.css';
 function App() {
   return (
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <div className="min-h-screen bg-gray-100">
+      <div className="min-h-screen bg-white">
         <Navbar />
         <Routes>
           <Route path="/" element={<Compare />} />

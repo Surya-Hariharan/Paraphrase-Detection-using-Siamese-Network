@@ -45,7 +45,8 @@ app.add_middleware(
 )
 
 # Load model and agent globally
-MODEL_PATH = "checkpoints/best_model.pt"
+# Use relative path from backend to project root
+MODEL_PATH = "../checkpoints/best_model.pt"
 model = None
 inference_agent = None
 

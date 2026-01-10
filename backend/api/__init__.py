@@ -4,7 +4,6 @@ FastAPI application and routing.
 This module contains the REST API endpoints for the paraphrase detection service.
 """
 
-from .app import app
-from .routes import router
+from .inference import app
 
-__all__ = ["app", "router"]
+__all__ = ["app"]

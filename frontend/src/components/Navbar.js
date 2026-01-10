@@ -13,24 +13,25 @@ const Navbar = () => {
   ];
 
   return (
-    <nav className="bg-white shadow-lg">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
-          <div className="flex">
-            <div className="flex-shrink-0 flex items-center">
-              <h1 className="text-2xl font-bold text-primary-600">
+    <nav className="bg-white border-b border-gray-100">
+      <div className="max-w-7xl mx-auto px-6 lg:px-8">
+        <div className="flex justify-between h-20">
+          <div className="flex items-center">
+            <div className="flex-shrink-0 flex items-center gap-3">
+              <div className="w-2 h-8 bg-zinc-900 rounded-full"></div>
+              <h1 className="text-xl font-semibold text-zinc-900 tracking-tight">
                 Paraphrase Detector
               </h1>
             </div>
-            <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
+            <div className="hidden sm:ml-12 sm:flex sm:space-x-8">
               {navLinks.map((link) => (
                 <Link
                   key={link.path}
                   to={link.path}
-                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+                  className={`inline-flex items-center px-1 pt-1 text-sm font-medium ${
                     isActive(link.path)
-                      ? 'border-primary-500 text-gray-900'
-                      : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                      ? 'text-zinc-900'
+                      : 'text-zinc-400 hover:text-zinc-600'
                   }`}
                 >
                   {link.label}
@@ -38,9 +39,10 @@ const Navbar = () => {
               ))}
             </div>
           </div>
-          <div className="flex items-center">
-            <span className="text-sm text-gray-500">
-              AI-Powered Detection
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+            <span className="text-xs font-medium text-zinc-500">
+              AI-Powered
             </span>
           </div>
         </div>
