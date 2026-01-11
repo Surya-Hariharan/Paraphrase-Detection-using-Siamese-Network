@@ -1,6 +1,6 @@
 import React from 'react';
-import Navbar from './components/Navbar';
-import Compare from './components/Compare';
+import Navbar from './components/Navbar.jsx';
+import Compare from './components/Compare.jsx';
 
 function App() {
   return (

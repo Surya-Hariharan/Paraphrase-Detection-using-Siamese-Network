@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { compareDocuments } from '../api';
-import TextType from './TextType';
-import Threads from './Threads';
+import TextType from './TextType.jsx';
+import Threads from './Threads.jsx';
 
 const Compare = () => {
   const [textA, setTextA] = useState('');
@@ -48,7 +48,7 @@ const Compare = () => {
       const data = await compareDocuments(textA, textB, useAgent, threshold);
       setResult(data);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to compare documents. Please ensure the backend is running.');
+      setError(err.message || 'Failed to compare documents. Please ensure the backend is running on http://localhost:8000');
     } finally {
       setLoading(false);
     }
@@ -243,7 +243,7 @@ const Compare = () => {
           <div className="mt-8 border-2 border-gray-300 rounded-xl p-8 bg-white shadow-xl">
             <h3 className="text-2xl font-bold text-black mb-6">Analysis Results</h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               <div className="p-6 bg-gray-50 rounded-xl border-2 border-gray-200">
                 <div className="text-sm text-gray-600 mb-2">Similarity Score</div>
                 <div className="text-4xl font-bold text-black">
@@ -254,21 +254,60 @@ const Compare = () => {
               <div className="p-6 bg-gray-50 rounded-xl border-2 border-gray-200">
                 <div className="text-sm text-gray-600 mb-2">Classification</div>
                 <div className={`text-2xl font-bold ${result.is_paraphrase ? 'text-green-600' : 'text-red-600'}`}>
-                  {result.is_paraphrase ? 'Paraphrase Detected' : 'Not a Paraphrase'}
+                  {result.is_paraphrase ? 'Paraphrase' : 'Not Paraphrase'}
+                </div>
+              </div>
+
+              <div className="p-6 bg-gray-50 rounded-xl border-2 border-gray-200">
+                <div className="text-sm text-gray-600 mb-2">Confidence</div>
+                <div className="text-4xl font-bold text-black">
+                  {(result.confidence * 100).toFixed(1)}%
                 </div>
               </div>
             </div>
 
-            {result.agent_analysis && (
-              <div className="border-t-2 border-gray-200 pt-6">
-                <h4 className="text-lg font-semibold text-black mb-3">AI Agent Analysis</h4>
-                <p className="text-gray-700 leading-relaxed">{result.agent_analysis}</p>
+            {/* Agent Validation Info */}
+            {result.agent_validation && (
+              <div className="mb-6 p-6 bg-blue-50 border-2 border-blue-200 rounded-xl">
+                <h4 className="text-lg font-semibold text-black mb-3 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  AI Agent Validation
+                </h4>
+                <div className="space-y-2 text-sm">
+                  <p className="text-gray-700">
+                    <span className="font-semibold">Status:</span> {result.agent_validation.validated ? '✓ Validated' : '⚠ Needs Review'}
+                  </p>
+                  {result.agent_validation.flags && result.agent_validation.flags.length > 0 && (
+                    <p className="text-gray-700">
+                      <span className="font-semibold">Flags:</span> {result.agent_validation.flags.join(', ')}
+                    </p>
+                  )}
+                  {result.agent_validation.suggested_action && (
+                    <p className="text-gray-700">
+                      <span className="font-semibold">Suggestion:</span> {result.agent_validation.suggested_action}
+                    </p>
+                  )}
+                </div>
               </div>
             )}
 
-            <div className="border-t-2 border-gray-200 pt-6 mt-6">
+            {/* AI Agent Analysis */}
+            {result.agent_analysis && (
+              <div className="border-t-2 border-gray-200 pt-6">
+                <h4 className="text-lg font-semibold text-black mb-3">AI Agent Reasoning</h4>
+                <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{result.agent_analysis}</p>
+              </div>
+            )}
+
+            {/* Metadata */}
+            <div className="border-t-2 border-gray-200 pt-6 mt-6 grid grid-cols-2 gap-4">
               <div className="text-sm text-gray-500">
-                Processing Time: {result.processing_time?.toFixed(2)}s
+                <span className="font-semibold">Processing Time:</span> {result.processing_time?.toFixed(3)}s
+              </div>
+              <div className="text-sm text-gray-500">
+                <span className="font-semibold">Threshold Used:</span> {(result.threshold * 100).toFixed(0)}%
               </div>
             </div>
           </div>
