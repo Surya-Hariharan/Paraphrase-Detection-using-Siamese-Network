@@ -94,7 +94,7 @@ class PairResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str
-    model_loaded: bool
+    is_model_ready: bool
     device: str
 
 # Endpoints
@@ -115,7 +115,7 @@ async def health():
     """Health check endpoint."""
     return {
         "status": "healthy" if model is not None else "model_not_loaded",
-        "model_loaded": model is not None,
+        "is_model_ready": model is not None,
         "device": str(model.device) if model is not None else "unknown"
     }
 
