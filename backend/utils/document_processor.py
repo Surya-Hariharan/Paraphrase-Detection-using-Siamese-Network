@@ -12,7 +12,7 @@ Usage:
 
 import fitz  # PyMuPDF
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 import tempfile
 import os
 
@@ -138,7 +138,7 @@ def extract_text_from_bytes(file_bytes: bytes, filename: str) -> str:
             os.remove(tmp_path)
 
 
-def validate_text(text: str, min_length: int = 10, max_length: int = 100000) -> tuple[bool, Optional[str]]:
+def validate_text(text: str, min_length: int = 10, max_length: int = 100000) -> Tuple[bool, Optional[str]]:
     """
     Validate extracted text.
     
