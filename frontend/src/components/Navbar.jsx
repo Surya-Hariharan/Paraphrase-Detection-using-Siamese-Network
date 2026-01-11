@@ -10,7 +10,7 @@ const Navbar = () => {
         const health = await healthCheck();
         setBackendStatus({
           connected: true,
-          modelLoaded: health.model_loaded
+          modelLoaded: health.is_model_ready
         });
       } catch (error) {
         setBackendStatus({

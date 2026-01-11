@@ -140,7 +140,11 @@ async def compare_texts(request: PairRequest):
         # Get similarity score from model
         result = model.calculate_similarity(request.text_a, request.text_b)
         
-        similarity = float(result['similarity'])
+        # Extract similarity score (cosine_similarity is in range [-1, 1])
+        # Convert to [0, 1] range for easier interpretation
+        cosine_sim = float(result['cosine_similarity'])
+        similarity = (cosine_sim + 1) / 2  # Convert [-1, 1] to [0, 1]
+        
         is_paraphrase = similarity >= request.threshold
         
         # Calculate confidence (distance from threshold)
@@ -181,6 +185,9 @@ async def compare_texts(request: PairRequest):
         )
     
     except Exception as e:
+        import traceback
+        print(f"❌ Error in /compare endpoint: {str(e)}")
+        print(traceback.format_exc())
         raise HTTPException(
             status_code=500,
             detail=f"Prediction error: {str(e)}"
