@@ -12,7 +12,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import torch
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 import sys
 from pathlib import Path
 
@@ -187,7 +187,7 @@ async def compare_texts(request: PairRequest):
         )
 
 @app.post("/batch_compare")
-async def batch_compare(pairs: list[PairRequest]):
+async def batch_compare(pairs: List[PairRequest]):
     """
     Compare multiple text pairs in batch.
     
