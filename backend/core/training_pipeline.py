@@ -23,7 +23,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
-from torch.amp import autocast, GradScaler  # Mixed precision training
+from torch.cuda.amp import autocast, GradScaler  # Mixed precision training
 from typing import List, Dict, Any, Tuple, Optional
 from tqdm import tqdm
 import numpy as np
