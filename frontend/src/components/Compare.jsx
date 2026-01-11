@@ -1,11 +1,13 @@
 import React, { useState, useRef } from 'react';
-import { compareDocuments } from '../api';
+import { compareDocuments, compareFiles } from '../api';
 import TextType from './TextType.jsx';
 import Threads from './Threads.jsx';
 
 const Compare = () => {
   const [textA, setTextA] = useState('');
   const [textB, setTextB] = useState('');
+  const [fileA, setFileA] = useState(null);
+  const [fileB, setFileB] = useState(null);
   const [threshold, setThreshold] = useState(0.8);
   const [useAgent, setUseAgent] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -15,26 +17,27 @@ const Compare = () => {
   const fileInputARef = useRef(null);
   const fileInputBRef = useRef(null);
 
-  const handleFileUpload = async (file, setTextFunc) => {
+  const handleFileUpload = async (file, setTextFunc, setFileFunc) => {
     if (!file) return;
     
-    const allowedTypes = [
-      'text/plain',
-      'application/pdf',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/msword'
-    ];
+    const allowedExtensions = ['.txt', '.pdf', '.docx'];
+    const fileName = file.name.toLowerCase();
+    const hasValidExtension = allowedExtensions.some(ext => fileName.endsWith(ext));
     
-    if (!allowedTypes.includes(file.type)) {
+    if (!hasValidExtension) {
       alert('Please upload only .txt, .pdf, or .docx files');
       return;
     }
     
+    // Store file for API upload
+    setFileFunc(file);
+    
+    // For text files, also show preview
     if (file.type === 'text/plain') {
       const text = await file.text();
       setTextFunc(text);
     } else {
-      alert('PDF and DOCX parsing will be implemented soon. Please use .txt files for now.');
+      setTextFunc(`📄 ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
     }
   };
 
@@ -45,7 +48,17 @@ const Compare = () => {
     setResult(null);
 
     try {
-      const data = await compareDocuments(textA, textB, useAgent, threshold);
+      let data;
+      
+      // Use file upload API if both files are provided
+      if (fileA && fileB) {
+        data = await compareFiles(fileA, fileB, useAgent, threshold);
+      } 
+      // Otherwise use text comparison API
+      else {
+        data = await compareDocuments(textA, textB, useAgent, threshold);
+      }
+      
       setResult(data);
     } catch (err) {
       setError(err.message || 'Failed to compare documents. Please ensure the backend is running on http://localhost:8000');
@@ -57,8 +70,12 @@ const Compare = () => {
   const clearAll = () => {
     setTextA('');
     setTextB('');
+    setFileA(null);
+    setFileB(null);
     setResult(null);
     setError(null);
+    if (fileInputARef.current) fileInputARef.current.value = '';
+    if (fileInputBRef.current) fileInputBRef.current.value = '';
   };
 
   return (
@@ -113,7 +130,7 @@ const Compare = () => {
                   ref={fileInputARef}
                   type="file"
                   accept=".txt,.pdf,.doc,.docx"
-                  onChange={(e) => handleFileUpload(e.target.files[0], setTextA)}
+                  onChange={(e) => handleFileUpload(e.target.files[0], setTextA, setFileA)}
                   className="hidden"
                 />
               </div>
@@ -146,7 +163,7 @@ const Compare = () => {
                   ref={fileInputBRef}
                   type="file"
                   accept=".txt,.pdf,.doc,.docx"
-                  onChange={(e) => handleFileUpload(e.target.files[0], setTextB)}
+                  onChange={(e) => handleFileUpload(e.target.files[0], setTextB, setFileB)}
                   className="hidden"
                 />
               </div>

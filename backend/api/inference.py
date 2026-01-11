@@ -8,7 +8,7 @@ Usage:
     uvicorn backend.api.inference:app --reload --host 0.0.0.0 --port 8000
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import torch
@@ -20,6 +20,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from backend.core.neural_engine import TrainableSiameseModel
+from backend.utils.document_processor import extract_text_from_bytes, validate_text
 
 # Try to load AI agents
 try:
@@ -223,6 +224,72 @@ async def batch_compare(pairs: List[PairRequest]):
             })
     
     return results
+
+@app.post("/compare_files", response_model=PairResponse)
+async def compare_files(
+    file_a: UploadFile = File(..., description="First document (.txt, .pdf, .docx)"),
+    file_b: UploadFile = File(..., description="Second document (.txt, .pdf, .docx)"),
+    threshold: Optional[float] = 0.8,
+    use_agent: Optional[bool] = True
+):
+    """
+    Compare two uploaded documents for paraphrasing.
+    
+    Supports: .txt, .pdf, .docx
+    
+    Args:
+        file_a: First document file
+        file_b: Second document file
+        threshold: Similarity threshold (0.0-1.0)
+        use_agent: Use AI agent validation
+        
+    Returns:
+        PairResponse with similarity analysis
+    """
+    if model is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Model not loaded. Please train the model first."
+        )
+    
+    try:
+        # Read file contents
+        content_a = await file_a.read()
+        content_b = await file_b.read()
+        
+        # Extract text from files
+        text_a = extract_text_from_bytes(content_a, file_a.filename)
+        text_b = extract_text_from_bytes(content_b, file_b.filename)
+        
+        # Validate extracted text
+        valid_a, error_a = validate_text(text_a)
+        if not valid_a:
+            raise HTTPException(status_code=400, detail=f"File A: {error_a}")
+        
+        valid_b, error_b = validate_text(text_b)
+        if not valid_b:
+            raise HTTPException(status_code=400, detail=f"File B: {error_b}")
+        
+        # Create request object and process
+        request = PairRequest(
+            text_a=text_a,
+            text_b=text_b,
+            threshold=threshold,
+            use_agent=use_agent
+        )
+        
+        return await compare_texts(request)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        print(f"❌ Error in /compare_files endpoint: {str(e)}")
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=500,
+            detail=f"File processing error: {str(e)}"
+        )
 
 if __name__ == "__main__":
     import uvicorn

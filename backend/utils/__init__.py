@@ -1,11 +1,17 @@
 """
-Utility modules for configuration.
+Utility modules for configuration and document processing.
 
 This module contains helper functions and classes.
 """
 
-from .config import Config
+from .document_processor import (
+    extract_text_from_file,
+    extract_text_from_bytes,
+    validate_text
+)
 
 __all__ = [
-    "Config",
+    "extract_text_from_file",
+    "extract_text_from_bytes",
+    "validate_text"
 ]

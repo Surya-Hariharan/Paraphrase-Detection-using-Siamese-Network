@@ -93,10 +93,44 @@ export const batchCompare = async (pairs) => {
   return response.data;
 };
 
+/**
+ * Compare two uploaded files for paraphrase detection
+ * @param {File} fileA - First file (.txt, .pdf, .docx)
+ * @param {File} fileB - Second file (.txt, .pdf, .docx)
+ * @param {boolean} useAgent - Whether to use AI agent validation
+ * @param {number} threshold - Similarity threshold (0.0-1.0)
+ * @returns {Promise<Object>} Comparison results
+ */
+export const compareFiles = async (fileA, fileB, useAgent = true, threshold = 0.8) => {
+  const startTime = Date.now();
+  
+  const formData = new FormData();
+  formData.append('file_a', fileA);
+  formData.append('file_b', fileB);
+  formData.append('threshold', threshold);
+  formData.append('use_agent', useAgent);
+  
+  const response = await api.post('/compare_files', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    }
+  });
+  
+  const endTime = Date.now();
+  const processingTime = (endTime - startTime) / 1000;
+  
+  return {
+    ...response.data,
+    processing_time: processingTime,
+    agent_analysis: response.data.agent_validation?.llm_reasoning || null
+  };
+};
+
 export default {
   getApiInfo,
   healthCheck,
   compareDocuments,
-  batchCompare
+  batchCompare,
+  compareFiles
 };
 
