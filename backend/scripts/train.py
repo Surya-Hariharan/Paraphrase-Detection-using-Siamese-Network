@@ -426,17 +426,29 @@ class AdvancedSiameseTrainer:
             if val_metrics['loss'] < self.best_val_loss:
                 self.best_val_loss = val_metrics['loss']
                 checkpoint_path = Path(checkpoint_dir) / 'best_model.pt'
-                self.model.save_checkpoint(str(checkpoint_path))
+                self.model.save_checkpoint(
+                    str(checkpoint_path), 
+                    epoch=epoch, 
+                    optimizer_state=self.optimizer.state_dict()
+                )
                 print(f"New best model saved! (val_loss: {val_metrics['loss']:.4f})")
             
             # Save checkpoints
             if epoch % save_interval == 0:
                 checkpoint_path = Path(checkpoint_dir) / f'checkpoint_epoch_{epoch}.pt'
-                self.model.save_checkpoint(str(checkpoint_path))
+                self.model.save_checkpoint(
+                    str(checkpoint_path), 
+                    epoch=epoch, 
+                    optimizer_state=self.optimizer.state_dict()
+                )
         
         # Save final model
         final_path = Path(checkpoint_dir) / 'final_model.pt'
-        self.model.save_checkpoint(str(final_path))
+        self.model.save_checkpoint(
+            str(final_path), 
+            epoch=num_epochs, 
+            optimizer_state=self.optimizer.state_dict()
+        )
         
         # Save training history
         history_path = Path(checkpoint_dir) / 'training_history.json'

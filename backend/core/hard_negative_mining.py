@@ -201,9 +201,9 @@ class AdaptiveThresholdOptimizer:
             predictions = (similarities >= threshold).astype(int)
             
             # Weighted metrics
-            tp = ((predictions == 1) & (labels == 1) * sample_weights).sum()
-            fp = ((predictions == 1) & (labels == 0) * sample_weights).sum()
-            fn = ((predictions == 0) & (labels == 1) * sample_weights).sum()
+            tp = (((predictions == 1) & (labels == 1)) * sample_weights).sum()
+            fp = (((predictions == 1) & (labels == 0)) * sample_weights).sum()
+            fn = (((predictions == 0) & (labels == 1)) * sample_weights).sum()
             
             # Avoid division by zero
             precision = tp / (tp + fp + 1e-8)
