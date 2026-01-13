@@ -33,20 +33,11 @@ from datetime import datetime
 from transformers import get_cosine_schedule_with_warmup
 
 # Our modules
-from .neural_engine import TrainableSiameseModel, ContrastiveLoss
+from .model import TrainableSiameseModel, ContrastiveLoss
 from dotenv import load_dotenv
 
-# Agent system
-try:
-    from backend.agents import (
-        DataValidationAgent,
-        TrainingMonitorAgent,
-        InferenceValidatorAgent,
-        AgentConfig
-    )
-    AGENTS_AVAILABLE = True
-except ImportError:
-    AGENTS_AVAILABLE = False
+# Agents removed for cleaner architecture
+AGENTS_AVAILABLE = False
 
 load_dotenv()
 

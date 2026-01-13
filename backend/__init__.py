@@ -19,7 +19,7 @@ from .core import (
     ContrastiveLoss,
 )
 
-from .core.training_pipeline import (
+from .core.trainer import (
     ParaphraseDataset,
     SiameseTrainer,
 )

@@ -5,7 +5,7 @@ This module contains the fundamental building blocks of the Siamese network
 for paraphrase detection.
 """
 
-from .neural_engine import (
+from .model import (
     TrainableSiameseModel,
     ThresholdOptimizer,
     SiameseProjectionModel,

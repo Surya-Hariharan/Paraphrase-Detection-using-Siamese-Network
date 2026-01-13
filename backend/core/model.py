@@ -175,6 +175,38 @@ class SiameseProjectionModel(nn.Module):
         print(f"Projection Head Parameters: {info['total_parameters']:,}")
         print(f"SBERT Encoder Device: {self.device}")
         print("Weight sharing verified")
+    
+    def forward_batch(self, docs_a: list, docs_b: list) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Forward pass for batch of documents.
+        
+        Args:
+            docs_a: List of documents A
+            docs_b: List of documents B
+            
+        Returns:
+            Tuple of embedding tensors (batch_size, projection_dim)
+        """
+        # Encode batches
+        emb_a_batch = self.sbert_model.encode(
+            docs_a,
+            convert_to_tensor=True,
+            device=self.device,
+            show_progress_bar=False
+        )
+        
+        emb_b_batch = self.sbert_model.encode(
+            docs_b,
+            convert_to_tensor=True,
+            device=self.device,
+            show_progress_bar=False
+        )
+        
+        # Project
+        vec_a_batch = self.projection_head(emb_a_batch)
+        vec_b_batch = self.projection_head(emb_b_batch)
+        
+        return vec_a_batch, vec_b_batch
 
 
 # ============================================================

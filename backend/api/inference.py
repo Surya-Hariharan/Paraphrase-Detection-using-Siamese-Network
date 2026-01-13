@@ -19,15 +19,11 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from backend.core.neural_engine import TrainableSiameseModel
+from backend.core.model import TrainableSiameseModel
 from backend.utils.document_processor import extract_text_from_bytes, validate_text
 
-# Try to load AI agents
-try:
-    from backend.agents import InferenceValidatorAgent, AgentConfig
-    AGENTS_AVAILABLE = True
-except ImportError:
-    AGENTS_AVAILABLE = False
+# Agents removed for cleaner architecture
+AGENTS_AVAILABLE = False
 
 # Initialize FastAPI app
 app = FastAPI(
