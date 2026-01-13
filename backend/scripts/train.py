@@ -509,8 +509,8 @@ def main():
     print(f"✓ Loaded {len(df)} training pairs")
     
     # Check for edge cases
-    sample_texts_a = df['question1'].head(1000).tolist()
-    sample_texts_b = df['question2'].head(1000).tolist()
+    sample_texts_a = df['text_1'].head(1000).tolist()
+    sample_texts_b = df['text_2'].head(1000).tolist()
     edge_mask = create_edge_case_mask(sample_texts_a, sample_texts_b)
     edge_count = edge_mask.sum()
     print(f"✓ Detected {edge_count} edge cases in first 1000 samples ({edge_count/10:.1f}%)")
@@ -525,18 +525,18 @@ def main():
     # Create datasets
     train_examples = [
         {
-            'text_a': row['question1'],
-            'text_b': row['question2'],
-            'label': int(row['is_duplicate'])
+            'text_a': row['text_1'],
+            'text_b': row['text_2'],
+            'label': int(row['label'])
         }
         for _, row in train_df.iterrows()
     ]
     
     val_examples = [
         {
-            'text_a': row['question1'],
-            'text_b': row['question2'],
-            'label': int(row['is_duplicate'])
+            'text_a': row['text_1'],
+            'text_b': row['text_2'],
+            'label': int(row['label'])
         }
         for _, row in val_df.iterrows()
     ]

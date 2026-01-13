@@ -15,29 +15,13 @@ import random
 import re
 import numpy as np
 from typing import List, Tuple, Dict
-import nlpaug.augmenter.word as naw
-import nlpaug.augmenter.sentence as nas
 
 
 class AdvancedAugmenter:
     """Advanced data augmentation for edge cases and document paraphrasing"""
     
     def __init__(self):
-        self.setup_augmenters()
-        
-    def setup_augmenters(self):
-        """Initialize augmentation strategies"""
-        try:
-            # Synonym replacement for paraphrases
-            self.synonym_aug = naw.SynonymAug(aug_src='wordnet')
-            # Back-translation for document paraphrasing
-            self.back_translation = naw.BackTranslationAug(
-                from_model_name='facebook/wmt19-en-de',
-                to_model_name='facebook/wmt19-de-en'
-            )
-        except:
-            self.synonym_aug = None
-            self.back_translation = None
+        pass
             
     def create_document_paraphrases(self, df: pd.DataFrame, num_samples: int = 2000) -> pd.DataFrame:
         """
@@ -109,9 +93,9 @@ class AdvancedAugmenter:
         # Add document templates
         for doc in doc_templates:
             doc_pairs.append({
-                'question1': doc['original'],
-                'question2': doc['paraphrase'],
-                'is_duplicate': doc['label']
+                'text_1': doc['original'],
+                'text_2': doc['paraphrase'],
+                'label': doc['label']
             })
             
         # Create hard negatives - similar documents with different meaning
@@ -147,9 +131,9 @@ class AdvancedAugmenter:
         
         for pair in hard_negative_pairs:
             doc_pairs.append({
-                'question1': pair['text1'],
-                'question2': pair['text2'],
-                'is_duplicate': pair['label']
+                'text_1': pair['text1'],
+                'text_2': pair['text2'],
+                'label': pair['label']
             })
             
         return pd.DataFrame(doc_pairs)
@@ -249,9 +233,9 @@ class AdvancedAugmenter:
         
         for q1, q2, label in all_pairs:
             edge_cases.append({
-                'question1': q1,
-                'question2': q2,
-                'is_duplicate': label
+                'text_1': q1,
+                'text_2': q2,
+                'label': label
             })
             
         return pd.DataFrame(edge_cases)
@@ -301,9 +285,9 @@ class AdvancedAugmenter:
                 )
                 
                 hard_negatives.append({
-                    'question1': text1,
-                    'question2': text2,
-                    'is_duplicate': template[2]
+                    'text_1': text1,
+                    'text_2': text2,
+                    'label': template[2]
                 })
                 
         return pd.DataFrame(hard_negatives)
@@ -354,7 +338,7 @@ class AdvancedAugmenter:
         print(f"\nSaved to: {output_path}")
         
         # Distribution
-        dup_count = enhanced_df['is_duplicate'].sum()
+        dup_count = enhanced_df['label'].sum()
         non_dup_count = len(enhanced_df) - dup_count
         print(f"\nClass distribution:")
         print(f"├── Paraphrases (1): {dup_count} ({dup_count/len(enhanced_df)*100:.1f}%)")
