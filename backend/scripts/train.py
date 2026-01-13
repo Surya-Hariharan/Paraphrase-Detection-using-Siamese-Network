@@ -552,9 +552,22 @@ def main():
     print("STEP 2: INITIALIZING MODEL")
     print("="*70)
     
+    # Map strategy to model parameters
+    if args.sbert_strategy == 'frozen':
+        freeze_sbert = True
+        unfreeze_all = False
+    elif args.sbert_strategy == 'full':
+        freeze_sbert = False
+        unfreeze_all = True
+    else:
+        # last_layer or last_2_layers - use full for simplicity
+        freeze_sbert = False
+        unfreeze_all = True
+    
     model = TrainableSiameseModel(
         projection_dim=args.projection_dim,
-        sbert_strategy=args.sbert_strategy
+        freeze_sbert=freeze_sbert,
+        unfreeze_all=unfreeze_all
     )
     
     # Count parameters
