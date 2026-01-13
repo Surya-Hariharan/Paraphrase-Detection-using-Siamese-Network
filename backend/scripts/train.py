@@ -19,6 +19,7 @@ import argparse
 import pandas as pd
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.cuda.amp import autocast, GradScaler
@@ -319,10 +320,10 @@ class AdvancedSiameseTrainer:
             for batch in self.val_loader:
                 texts_a = batch['text_a']
                 texts_b = batch['text_b']
+                labels = batch['label'].to(self.device)
+                
                 vec_a, vec_b = self.model.forward_batch(texts_a, texts_b)
                 similarities = F.cosine_similarity(vec_a, vec_b, dim=1)
-                outputs = self.model(texts_a, texts_b)
-                similarities = outputs['similarity']
                 
                 loss = self.criterion(similarities, labels)
                 total_loss += loss.item()
