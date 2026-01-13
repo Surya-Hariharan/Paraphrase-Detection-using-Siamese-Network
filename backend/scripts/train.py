@@ -28,6 +28,9 @@ from pathlib import Path
 import json
 from typing import Dict, List, Tuple
 from sklearn.metrics import f1_score, precision_score, recall_score
+import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')  # Non-interactive backend for saving plots
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent.parent))
@@ -225,8 +228,10 @@ class AdvancedSiameseTrainer:
             # Forward pass with mixed precision
             if self.use_mixed_precision:
                 with autocast():
-                    outputs = self.model(texts_a, texts_b)
-                    similarities = outputs['similarity']
+                    vec_a, vec_b = self.model.forward_batch(texts_a, texts_b)
+                    
+                    # Compute cosine similarity
+                    similarities = F.cosine_similarity(vec_a, vec_b, dim=1)
                     
                     # Hard negative mining
                     if self.use_hard_mining:
@@ -254,8 +259,10 @@ class AdvancedSiameseTrainer:
                 self.scaler.update()
             else:
                 # Without mixed precision
-                outputs = self.model(texts_a, texts_b)
-                similarities = outputs['similarity']
+                vec_a, vec_b = self.model.forward_batch(texts_a, texts_b)
+                
+                # Compute cosine similarity
+                similarities = F.cosine_similarity(vec_a, vec_b, dim=1)
                 
                 if self.use_hard_mining:
                     mask, weights = self.hard_miner.mine_hard_pairs(similarities, labels)
@@ -312,8 +319,8 @@ class AdvancedSiameseTrainer:
             for batch in self.val_loader:
                 texts_a = batch['text_a']
                 texts_b = batch['text_b']
-                labels = batch['label'].to(self.device)
-                
+                vec_a, vec_b = self.model.forward_batch(texts_a, texts_b)
+                similarities = F.cosine_similarity(vec_a, vec_b, dim=1)
                 outputs = self.model(texts_a, texts_b)
                 similarities = outputs['similarity']
                 
@@ -435,13 +442,108 @@ class AdvancedSiameseTrainer:
         with open(history_path, 'w') as f:
             json.dump(self.history, f, indent=2)
         
+        # Generate training plots
+        self._plot_training_curves(checkpoint_dir)
+        
         print("\n" + "="*70)
         print("TRAINING COMPLETE!")
         print("="*70)
         print(f"\nFinal model saved to {final_path}")
         print(f"Training history saved to {history_path}")
+        print(f"Training plots saved to {checkpoint_dir}/training_plots.png")
         
         return self.history
+    
+    def _plot_training_curves(self, checkpoint_dir: str):
+        """Generate and save training visualization plots"""
+        fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+        fig.suptitle('🚀 Training Progress - Siamese Network', fontsize=16, fontweight='bold')
+        
+        epochs = range(1, len(self.history['train_loss']) + 1)
+        
+        # Plot 1: Loss curves
+        ax1 = axes[0, 0]
+        ax1.plot(epochs, self.history['train_loss'], 'b-', label='Training Loss', linewidth=2)
+        ax1.plot(epochs, self.history['val_loss'], 'r-', label='Validation Loss', linewidth=2)
+        ax1.set_xlabel('Epoch', fontsize=12)
+        ax1.set_ylabel('Loss', fontsize=12)
+        ax1.set_title('Loss Curves', fontsize=14, fontweight='bold')
+        ax1.legend(fontsize=10)
+        ax1.grid(True, alpha=0.3)
+        ax1.axhline(y=min(self.history['val_loss']), color='g', linestyle='--', alpha=0.5, label=f'Best: {min(self.history["val_loss"]):.4f}')
+        
+        # Plot 2: Accuracy curves
+        ax2 = axes[0, 1]
+        ax2.plot(epochs, [acc * 100 for acc in self.history['train_acc']], 'b-', label='Training Accuracy', linewidth=2)
+        ax2.plot(epochs, [acc * 100 for acc in self.history['val_acc']], 'r-', label='Validation Accuracy', linewidth=2)
+        ax2.set_xlabel('Epoch', fontsize=12)
+        ax2.set_ylabel('Accuracy (%)', fontsize=12)
+        ax2.set_title('Accuracy Curves', fontsize=14, fontweight='bold')
+        ax2.legend(fontsize=10)
+        ax2.grid(True, alpha=0.3)
+        ax2.axhline(y=90, color='g', linestyle='--', alpha=0.5, label='90% Target')
+        max_val_acc = max(self.history['val_acc']) * 100
+        ax2.axhline(y=max_val_acc, color='orange', linestyle='--', alpha=0.5, label=f'Best: {max_val_acc:.2f}%')
+        
+        # Plot 3: F1 Score over time
+        ax3 = axes[1, 0]
+        if self.history['f1_score']:
+            f1_epochs = [i * 5 for i in range(1, len(self.history['f1_score']) + 1)]
+            ax3.plot(f1_epochs, self.history['f1_score'], 'g-o', label='F1 Score', linewidth=2, markersize=8)
+            ax3.set_xlabel('Epoch', fontsize=12)
+            ax3.set_ylabel('F1 Score', fontsize=12)
+            ax3.set_title('F1 Score Progress', fontsize=14, fontweight='bold')
+            ax3.legend(fontsize=10)
+            ax3.grid(True, alpha=0.3)
+            ax3.axhline(y=0.90, color='g', linestyle='--', alpha=0.5, label='0.90 Target')
+            if self.history['f1_score']:
+                best_f1 = max(self.history['f1_score'])
+                ax3.axhline(y=best_f1, color='orange', linestyle='--', alpha=0.5, label=f'Best: {best_f1:.3f}')
+        else:
+            ax3.text(0.5, 0.5, 'F1 Score not calculated', ha='center', va='center', fontsize=12)
+            ax3.set_title('F1 Score Progress', fontsize=14, fontweight='bold')
+        
+        # Plot 4: Training Summary Stats
+        ax4 = axes[1, 1]
+        ax4.axis('off')
+        
+        summary_text = f"""
+        📊 TRAINING SUMMARY
+        {'='*40}
+        
+        Final Results:
+        ├─ Training Accuracy: {self.history['train_acc'][-1]*100:.2f}%
+        ├─ Validation Accuracy: {self.history['val_acc'][-1]*100:.2f}%
+        ├─ Best Val Loss: {min(self.history['val_loss']):.4f}
+        └─ Best Val Accuracy: {max(self.history['val_acc'])*100:.2f}%
+        
+        Performance:
+        ├─ Total Epochs: {len(epochs)}
+        ├─ Best F1 Score: {max(self.history['f1_score']) if self.history['f1_score'] else 'N/A'}
+        └─ Final Loss: {self.history['val_loss'][-1]:.4f}
+        
+        Target Achievement:
+        {'✅ 90%+ Accuracy ACHIEVED!' if max(self.history['val_acc']) >= 0.90 else '⏳ Close to 90% target'}
+        {'✅ F1 > 0.90 ACHIEVED!' if self.history['f1_score'] and max(self.history['f1_score']) >= 0.90 else ''}
+        
+        Improvement from Baseline:
+        ├─ Baseline: 85.78%
+        ├─ Current: {max(self.history['val_acc'])*100:.2f}%
+        └─ Gain: +{(max(self.history['val_acc'])*100 - 85.78):.2f}%
+        """
+        
+        ax4.text(0.1, 0.95, summary_text, transform=ax4.transAxes, 
+                fontsize=11, verticalalignment='top', family='monospace',
+                bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3))
+        
+        plt.tight_layout()
+        
+        # Save plot
+        plot_path = Path(checkpoint_dir) / 'training_plots.png'
+        plt.savefig(plot_path, dpi=150, bbox_inches='tight')
+        plt.close()
+        
+        print(f"\n📈 Training plots saved to: {plot_path}")
 
 
 def parse_arguments():
@@ -469,10 +571,10 @@ def parse_arguments():
     parser.add_argument('--learning-rate', type=float, default=5e-5,
                        help='Learning rate for projection head')
     parser.add_argument('--sbert-lr', type=float, default=5e-6,
-                       help='Learning rate for SBERT encoder ine',
-                       choices=['contrastive', 'cosface', 'focal', 'cosine
+                       help='Learning rate for SBERT encoder (lower for stability)')
+    
     # Loss
-    parser.add_argument('--loss-type', type=str, default='cosface',
+    parser.add_argument('--loss-type', type=str, default='cosine',
                        choices=['contrastive', 'cosface', 'focal', 'cosine'],
                        help='Loss function type')
     parser.add_argument('--cosface-scale', type=float, default=30.0,
