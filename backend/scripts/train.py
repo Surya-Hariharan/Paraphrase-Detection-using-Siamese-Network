@@ -42,6 +42,38 @@ from backend.core.hard_negative_mining import (
 )
 
 
+class CosineSimilarityLoss(nn.Module):
+    """
+    Cosine Similarity Loss for Siamese Networks
+    
+    For paraphrases (label=1): Minimize distance (maximize similarity)
+    For non-paraphrases (label=0): Maximize distance (minimize similarity)
+    """
+    
+    def __init__(self, margin: float = 0.5):
+        super().__init__()
+        self.margin = margin
+        
+    def forward(self, similarities: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            similarities: Cosine similarities [batch_size], range [-1, 1]
+            labels: Ground truth labels [batch_size] (0 or 1)
+        """
+        # Convert labels to float
+        labels_float = labels.float()
+        
+        # For paraphrases (1): loss = 1 - similarity (want similarity close to 1)
+        # For non-paraphrases (0): loss = max(0, similarity - margin) (want similarity < margin)
+        
+        loss_positive = labels_float * (1 - similarities)
+        loss_negative = (1 - labels_float) * torch.clamp(similarities - self.margin, min=0.0)
+        
+        loss = loss_positive + loss_negative
+        
+        return loss.mean()
+
+
 class CosFaceLoss(nn.Module):
     """
     CosFace Angular Margin Loss for better feature discrimination
@@ -114,6 +146,9 @@ class AdvancedSiameseTrainer:
         elif loss_type == 'focal':
             self.criterion = FocalLoss(alpha=0.25, gamma=2.0)
             print(f"✓ Using Focal Loss (alpha=0.25, gamma=2.0)")
+        elif loss_type == 'cosine':
+            self.criterion = CosineSimilarityLoss(margin=0.5)
+            print(f"✓ Using Cosine Similarity Loss (margin=0.5)")
         else:
             self.criterion = ContrastiveLoss(margin=0.5)
             print(f"✓ Using Contrastive Loss (margin=0.5)")
@@ -434,11 +469,11 @@ def parse_arguments():
     parser.add_argument('--learning-rate', type=float, default=5e-5,
                        help='Learning rate for projection head')
     parser.add_argument('--sbert-lr', type=float, default=5e-6,
-                       help='Learning rate for SBERT encoder (lower for stability)')
-    
+                       help='Learning rate for SBERT encoder ine',
+                       choices=['contrastive', 'cosface', 'focal', 'cosine
     # Loss
     parser.add_argument('--loss-type', type=str, default='cosface',
-                       choices=['contrastive', 'cosface', 'focal'],
+                       choices=['contrastive', 'cosface', 'focal', 'cosine'],
                        help='Loss function type')
     parser.add_argument('--cosface-scale', type=float, default=30.0,
                        help='CosFace scale factor')
