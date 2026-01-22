@@ -52,85 +52,33 @@ export const healthCheck = async () => {
  * Compare two documents for paraphrase detection
  * @param {string} textA - First text to compare
  * @param {string} textB - Second text to compare
- * @param {boolean} useAgent - Whether to use AI agent validation
- * @param {number} threshold - Similarity threshold (0.0-1.0)
+ * @param {boolean} useCache - Whether to use inference cache
  * @returns {Promise<Object>} Comparison results
  */
-export const compareDocuments = async (textA, textB, useAgent = true, threshold = 0.8) => {
+export const compareDocuments = async (textA, textB, useCache = true) => {
   const startTime = Date.now();
   
-  const response = await api.post('/compare', {
-    text_a: textA,
-    text_b: textB,
-    use_agent: useAgent,
-    threshold: threshold
+  const response = await api.post('/inference/compare', {
+    text1: textA,
+    text2: textB,
+    use_cache: useCache
   });
   
   const endTime = Date.now();
   const processingTime = (endTime - startTime) / 1000; // Convert to seconds
   
   return {
-    ...response.data,
-    processing_time: processingTime,
-    agent_analysis: response.data.agent_validation?.llm_reasoning || null
-  };
-};
-
-/**
- * Compare multiple document pairs in batch
- * @param {Array} pairs - Array of {textA, textB, threshold, useAgent} objects
- * @returns {Promise<Array>} Array of comparison results
- */
-export const batchCompare = async (pairs) => {
-  const requestPairs = pairs.map(pair => ({
-    text_a: pair.textA,
-    text_b: pair.textB,
-    threshold: pair.threshold || 0.8,
-    use_agent: pair.useAgent !== undefined ? pair.useAgent : true
-  }));
-  
-  const response = await api.post('/batch_compare', requestPairs);
-  return response.data;
-};
-
-/**
- * Compare two uploaded files for paraphrase detection
- * @param {File} fileA - First file (.txt, .pdf, .docx)
- * @param {File} fileB - Second file (.txt, .pdf, .docx)
- * @param {boolean} useAgent - Whether to use AI agent validation
- * @param {number} threshold - Similarity threshold (0.0-1.0)
- * @returns {Promise<Object>} Comparison results
- */
-export const compareFiles = async (fileA, fileB, useAgent = true, threshold = 0.8) => {
-  const startTime = Date.now();
-  
-  const formData = new FormData();
-  formData.append('file_a', fileA);
-  formData.append('file_b', fileB);
-  formData.append('threshold', threshold);
-  formData.append('use_agent', useAgent);
-  
-  const response = await api.post('/compare_files', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    }
-  });
-  
-  const endTime = Date.now();
-  const processingTime = (endTime - startTime) / 1000;
-  
-  return {
-    ...response.data,
-    processing_time: processingTime,
-    agent_analysis: response.data.agent_validation?.llm_reasoning || null
+    similarity: response.data.similarity,
+    is_paraphrase: response.data.is_paraphrase,
+    inference_time_ms: response.data.inference_time_ms,
+    cached: response.data.cached,
+    processing_time: processingTime
   };
 };
 
 export default {
   getApiInfo,
   healthCheck,
-  compareDocuments,
-  batchCompare,
-  compareFiles
+  compareDocuments
 };
 
