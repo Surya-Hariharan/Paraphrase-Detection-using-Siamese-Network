@@ -81,12 +81,12 @@ const Compare = () => {
   return (
     <div className="min-h-screen bg-white relative overflow-hidden">
       {/* Threads Background */}
-      <div className="fixed inset-0 opacity-20 pointer-events-none">
+      <div className="fixed inset-0 opacity-10 pointer-events-none">
         <Threads
           color={[0, 0, 0]}
-          amplitude={1}
+          amplitude={0.5}
           distance={0}
-          enableMouseInteraction
+          enableMouseInteraction={false}
         />
       </div>
 
