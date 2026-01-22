@@ -10,7 +10,14 @@ Usage:
     text = extract_text_from_file("document.pdf")
 """
 
-import fitz  # PyMuPDF
+try:
+    import pymupdf as fitz
+except ImportError:
+    try:
+        import fitz
+    except ImportError:
+        fitz = None
+
 from pathlib import Path
 from typing import Optional, Tuple
 import tempfile
@@ -27,11 +34,15 @@ def extract_text_from_pdf(file_path: str) -> str:
     Returns:
         Extracted text as string
     """
+    if fitz is None:
+        raise ValueError("PyMuPDF (pymupdf) is not installed. Install with: pip install pymupdf")
+    
     text = ""
     try:
-        with fitz.open(file_path) as doc:
-            for page in doc:
-                text += page.get_text()
+        doc = fitz.open(file_path)
+        for page in doc:
+            text += page.get_text()
+        doc.close()
         return text.strip()
     except Exception as e:
         raise ValueError(f"Failed to extract text from PDF: {str(e)}")

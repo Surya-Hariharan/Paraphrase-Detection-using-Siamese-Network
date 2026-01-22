@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { compareDocuments, compareFiles } from '../api';
 import TextType from './TextType.jsx';
 import Threads from './Threads.jsx';
@@ -78,17 +78,21 @@ const Compare = () => {
     if (fileInputBRef.current) fileInputBRef.current.value = '';
   };
 
+  const threadsBackground = useMemo(() => (
+    <div className="fixed inset-0 opacity-30 pointer-events-none">
+      <Threads
+        color={[0, 0, 0]}
+        amplitude={0.5}
+        distance={0}
+        enableMouseInteraction={false}
+      />
+    </div>
+  ), []);
+
   return (
     <div className="min-h-screen bg-white relative overflow-hidden">
       {/* Threads Background */}
-      <div className="fixed inset-0 opacity-10 pointer-events-none">
-        <Threads
-          color={[0, 0, 0]}
-          amplitude={0.5}
-          distance={0}
-          enableMouseInteraction={false}
-        />
-      </div>
+      {threadsBackground}
 
       <div className="relative z-10 max-w-6xl mx-auto px-6 py-12">
         
@@ -184,7 +188,7 @@ const Compare = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               
               {/* Threshold Slider */}
-              <div>
+              <div className={!useAgent ? 'opacity-50' : ''}>
                 <div className="flex justify-between items-center mb-3">
                   <label className="text-sm font-semibold text-black">Similarity Threshold</label>
                   <span className="text-sm font-bold text-black">{(threshold * 100).toFixed(0)}%</span>
@@ -196,7 +200,10 @@ const Compare = () => {
                   step="0.01"
                   value={threshold}
                   onChange={(e) => setThreshold(parseFloat(e.target.value))}
-                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-black"
+                  disabled={!useAgent}
+                  className={`w-full h-2 bg-gray-200 rounded-lg appearance-none accent-black ${
+                    useAgent ? 'cursor-pointer' : 'cursor-not-allowed'
+                  }`}
                 />
                 <div className="flex justify-between text-xs text-gray-500 mt-2">
                   <span>0%</span>
