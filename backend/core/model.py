@@ -516,13 +516,17 @@ class TrainableSiameseModel(SiameseProjectionModel):
     def load_checkpoint(self, path: str):
         """Load training checkpoint."""
         checkpoint = torch.load(path, map_location=self.device)
-        self.projection_head.load_state_dict(checkpoint["projection_head"], strict=False)
         
-        # Load SBERT parameters if they were saved
-        if self.unfreeze_all and "sbert_encoder" in checkpoint:
-            self.sbert_encoder.load_state_dict(checkpoint["sbert_encoder"], strict=False)
-        
-        return checkpoint.get("epoch", 0), checkpoint.get("optimizer_state", None)
+        if "projection_head" in checkpoint:
+            self.projection_head.load_state_dict(checkpoint["projection_head"], strict=False)
+            
+            if self.unfreeze_all and "sbert_encoder" in checkpoint:
+                self.sbert_encoder.load_state_dict(checkpoint["sbert_encoder"], strict=False)
+            
+            return checkpoint.get("epoch", 0), checkpoint.get("optimizer_state", None)
+        else:
+            self.load_state_dict(checkpoint, strict=False)
+            return 0, None
     
     def _verify_freezing_status(self):
         """Verify SBERT freezing and log parameter status."""
