@@ -61,7 +61,21 @@ const Compare = () => {
       
       setResult(data);
     } catch (err) {
-      setError(err.message || 'Failed to compare documents. Please ensure the backend is running on http://localhost:8000');
+      // Extract detailed error message from response
+      let errorMsg = 'Failed to compare documents.';
+      
+      if (err.response?.data?.detail) {
+        errorMsg = err.response.data.detail;
+      } else if (err.message) {
+        errorMsg = err.message;
+      }
+      
+      // Add helpful context
+      if (err.code === 'ERR_NETWORK' || errorMsg.includes('Network Error')) {
+        errorMsg += ' Please ensure the backend is running on http://localhost:8000';
+      }
+      
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -258,8 +272,16 @@ const Compare = () => {
 
         {/* Results */}
         {error && (
-          <div className="mt-8 p-6 bg-red-50 border-2 border-red-200 rounded-xl shadow-lg">
-            <p className="text-red-800 font-medium">{error}</p>
+          <div className="mt-8 p-6 bg-red-50 border-2 border-red-300 rounded-xl shadow-lg fade-in">
+            <div className="flex items-start gap-3">
+              <svg className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <h4 className="text-red-900 font-semibold mb-1">Error</h4>
+                <p className="text-red-800">{error}</p>
+              </div>
+            </div>
           </div>
         )}
 
