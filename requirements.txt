@@ -45,10 +45,11 @@ passlib[bcrypt]==1.7.4
 sqlalchemy==2.0.23
 alembic==1.13.1
 
-# LLM Agents
+# LLM Agents (CrewAI with Gemini/Groq support)
 crewai==0.86.0
 crewai-tools==0.17.0
 langchain-google-genai==2.0.8
+langchain-groq==0.2.1
 
 # Production Server
 gunicorn==21.2.0

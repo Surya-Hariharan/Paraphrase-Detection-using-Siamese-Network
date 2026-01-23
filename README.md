@@ -164,23 +164,25 @@ backend/
 ├── security/
 │   ├── auth/               # JWT, auth dependencies
 │   └── ddos/               # DDoS protection
-├── services/               # Business logic
-├─Agentic AI
-GEMINI_API_KEY=your_gemini_api_key_here  # For edge case validation
-
-# ─ db/                     # Database models
+├── services/
+│   ├── inference_service.py    # Optimized inference
+│   └── agentic_validator.py    # CrewAI multi-agent validation
+├── db/                     # Database models
 ├── config/                 # Configuration
 └── cli/                    # Management scripts
 ```
 
+## CrewAI Multi-Agent Pipeline
+
 ## Performance Optimizations
 
 1. **Inference Caching**: MD5-based cache for identical queries
-2. **CUDA Optimization**: cudnn.benchmark for faster GPU inference
-3. **Async Processing**: Background logging, non-blocking operations
-4. **GZip Compression**: Automatic response compression
-5. **Connection Pooling**: Efficient database connections
-6. **Thread Safety**: Lock-based cache management
+2. **CrewAI Smart Triggering**: Agents only for edge cases (~4-7% of queries)
+3. **CUDA Optimization**: cudnn.benchmark for faster GPU inference
+4. **Async Processing**: Background logging, non-blocking operations
+5. **GZip Compression**: Automatic response compression
+6. **Connection Pooling**: Efficient database connections
+7. **Thread Safety**: Lock-based cache management
 
 ## Configuration
 
@@ -190,6 +192,10 @@ Key environment variables in `.env`:
 # Performance
 RATE_LIMIT_PER_MINUTE=60
 WORKERS=4
+
+# Agentic AI
+GEMINI_API_KEY=your_gemini_api_key_here  # For CrewAI agents (primary)
+GROQ_API_KEY=your_groq_api_key_here      # For CrewAI agents (alternative)
 
 # Model
 ENCODER_NAME=sentence-transformers/all-MiniLM-L6-v2

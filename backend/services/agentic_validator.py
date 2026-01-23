@@ -7,6 +7,7 @@ from datetime import datetime
 
 from crewai import Agent, Task, Crew, Process
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
 
 
 class ConfidenceLevel(Enum):
@@ -30,25 +31,36 @@ class AgenticValidator:
     
     def __init__(self):
         """Initialize CrewAI agents and LLM"""
-        # Get API key
-        api_key = os.getenv("GEMINI_API_KEY") or os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            print("⚠️  Warning: No GEMINI_API_KEY or OPENAI_API_KEY found. Agentic AI disabled.")
+        # Get API key (prefer Gemini, fallback to Groq)
+        gemini_key = os.getenv("GEMINI_API_KEY")
+        groq_key = os.getenv("GROQ_API_KEY")
+        
+        if not gemini_key and not groq_key:
+            print("⚠️  Warning: No GEMINI_API_KEY or GROQ_API_KEY found. Agentic AI disabled.")
             self.enabled = False
             return
         
         self.enabled = True
         
-        # Initialize LLM (Gemini Pro)
+        # Initialize LLM (prefer Gemini, fallback to Groq)
         try:
-            self.llm = ChatGoogleGenerativeAI(
-                model="gemini-1.5-flash",
-                google_api_key=os.getenv("GEMINI_API_KEY"),
-                temperature=0.3,
-                convert_system_message_to_human=True
-            )
+            if gemini_key:
+                self.llm = ChatGoogleGenerativeAI(
+                    model="gemini-1.5-flash",
+                    google_api_key=gemini_key,
+                    temperature=0.3,
+                    convert_system_message_to_human=True
+                )
+                print("✓ CrewAI initialized with Gemini")
+            elif groq_key:
+                self.llm = ChatGroq(
+                    model="llama-3.3-70b-versatile",
+                    groq_api_key=groq_key,
+                    temperature=0.3
+                )
+                print("✓ CrewAI initialized with Groq")
         except Exception as e:
-            print(f"⚠️  Warning: Failed to initialize Gemini LLM: {e}")
+            print(f"⚠️  Warning: Failed to initialize LLM: {e}")
             self.enabled = False
             return
         

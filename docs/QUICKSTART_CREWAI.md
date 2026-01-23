@@ -16,12 +16,23 @@ pip install -r requirements.txt
 3. Click "Create API Key"
 4. Copy the key
 
+### Alternative: Get Groq API Key (Free)
+
+1. Visit https://console.groq.com/keys
+2. Sign up for free account
+3. Create API key
+4. Copy the key
+
 ### Add to .env
 
 ```bash
 # .env
 GEMINI_API_KEY=your_gemini_api_key_here
+# OR (alternative)
+GROQ_API_KEY=your_groq_api_key_here
 ```
+
+**Note**: Gemini is preferred. If both are set, Gemini will be used.
 
 ## Test the System
 
@@ -167,13 +178,15 @@ curl http://localhost:8000/inference/health
 
 **Check**:
 ```bash
-# .env should have:
+# .env should have either:
 GEMINI_API_KEY=your_key_here
 # OR
-OPENAI_API_KEY=your_key_here
+GROQ_API_KEY=your_key_here
 ```
 
 **Fix**: Add API key and restart server
+
+**Priority**: Gemini is tried first, then Groq
 
 ---
 

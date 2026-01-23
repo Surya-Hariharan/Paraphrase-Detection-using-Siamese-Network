@@ -322,12 +322,13 @@ GET /inference/health
 3. Click "Create API Key"
 4. Copy key to `.env`: `GEMINI_API_KEY=your_key_here`
 
-**OpenAI (Optional Alternative)**:
-1. Visit [OpenAI Platform](https://platform.openai.com/api-keys)
-2. Create API key
-3. Add to `.env`: `OPENAI_API_KEY=your_key_here`
+**Groq (Alternative - Free)**:
+1. Visit [Groq Console](https://console.groq.com/keys)
+2. Sign up for free account
+3. Create API key
+4. Add to `.env`: `GROQ_API_KEY=your_key_here`
 
-**Note**: CrewAI will use Gemini by default if both are provided.
+**Note**: CrewAI will use Gemini by default if both are provided. Groq uses LLaMA 3.3 70B.
 
 ### Environment Variables
 
