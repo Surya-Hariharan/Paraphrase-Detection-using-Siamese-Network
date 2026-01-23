@@ -116,6 +116,6 @@ class SecurityEvent(Base):
     
     severity = Column(String(20), default="info")  # info, warning, critical
     description = Column(Text, nullable=True)
-    metadata = Column(Text, nullable=True)  # JSON string
+    event_metadata = Column(Text, nullable=True)  # JSON string
     
     created_at = Column(DateTime, default=datetime.utcnow)

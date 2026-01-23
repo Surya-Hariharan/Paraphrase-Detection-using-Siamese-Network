@@ -156,12 +156,12 @@ class InferenceEngine:
         }
     
     def clear_cache(self):
-            self._agent_validations = 0
         """Clear inference cache"""
         with self._cache_lock:
             self._cache.clear()
             self._cache_hits = 0
             self._total_requests = 0
+            self._agent_validations = 0
 
 
 # Global inference engine
