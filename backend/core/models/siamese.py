@@ -102,20 +102,22 @@ class SiameseModel(nn.Module):
     
     def load(self, path):
         """Load model state"""
-        checkpoint = torch.load(path, map_location='cpu')
-        self.load_state_dict(checkpoint['state_dict'])
+        checkpoint = torch.load(path, map_location='cpu', weights_only=False)
+        # Use strict=False to handle version differences in SBERT model
+        self.load_state_dict(checkpoint['state_dict'], strict=False)
         print(f"Model loaded from {path}")
     
     @staticmethod
     def load_from_checkpoint(path, device='cpu'):
         """Load model from checkpoint"""
-        checkpoint = torch.load(path, map_location=device)
+        checkpoint = torch.load(path, map_location=device, weights_only=False)
         model = SiameseModel(
             encoder_name=checkpoint.get('encoder_name', 'all-MiniLM-L6-v2'),
             embedding_dim=checkpoint.get('embedding_dim', 384),
             projection_dim=checkpoint.get('projection_dim', 256)
         )
-        model.load_state_dict(checkpoint['state_dict'])
+        # Use strict=False to handle version differences in SBERT model
+        model.load_state_dict(checkpoint['state_dict'], strict=False)
         model.to(device)
         model.eval()
         return model

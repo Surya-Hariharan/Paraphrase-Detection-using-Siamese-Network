@@ -95,29 +95,36 @@ class InferenceEngine:
         # Agentic validation for edge cases
         agent_metadata = {'cached': False, 'agent_used': False}
         
+        # First get model's raw decision
+        raw_is_paraphrase = raw_similarity > settings.model.SIMILARITY_THRESHOLD
+        
         if use_agent:
-            adjusted_similarity, final_decision, validation_metadata = agentic_validator.validate_prediction(
-                text_a, text_b, raw_similarity
+            validation_result = agentic_validator.validate(
+                text_a, text_b, raw_similarity, raw_is_paraphrase
             )
             
-            if validation_metadata.get('used_agent_validation'):
+            if validation_result.get('agent_used'):
                 self._agent_validations += 1
             
             agent_metadata = {
                 'cached': False,
-                'agent_used': True,
-                'confidence_level': validation_metadata['confidence_level'],
-                'edge_cases': validation_metadata['edge_cases'],
-                'agent_validation': validation_metadata.get('used_agent_validation', False),
-                'agent_reasoning': validation_metadata.get('agent_reasoning'),
-                'agent_confidence': validation_metadata.get('agent_confidence'),
-                'paraphrase_rescued': validation_metadata.get('paraphrase_rescued', False),
+                'agent_used': validation_result.get('agent_used', False),
+                'confidence_level': validation_result.get('confidence_level'),
+                'edge_cases': validation_result.get('edge_cases'),
+                'agent_validation': validation_result.get('agent_validation'),
+                'agent_reasoning': validation_result.get('agent_reasoning'),
+                'agent_confidence': validation_result.get('agent_confidence'),
+                'paraphrase_rescued': validation_result.get('paraphrase_rescued', False),
                 'original_similarity': raw_similarity,
-                'adjusted_similarity': adjusted_similarity
+                'adjusted_similarity': validation_result.get('adjusted_similarity', raw_similarity)
             }
             
-            similarity = adjusted_similarity
-            is_paraphrase = final_decision
+            similarity = validation_result.get('adjusted_similarity', raw_similarity)
+            # Use agent's decision if it was used, otherwise use model's decision
+            if validation_result.get('agent_validation') is not None:
+                is_paraphrase = validation_result.get('agent_validation')
+            else:
+                is_paraphrase = similarity > settings.model.SIMILARITY_THRESHOLD
         else:
             similarity = raw_similarity
             is_paraphrase = similarity > settings.model.SIMILARITY_THRESHOLD

@@ -1,13 +1,16 @@
-"""CrewAI-powered Agentic Validator for Intelligent Paraphrase Detection"""
+"""Agentic Validator for Intelligent Paraphrase Detection using Google Gemini"""
 
 import os
 from enum import Enum
-from typing import Dict, List, Tuple
+from typing import Dict, Tuple, Optional
 from datetime import datetime
 
-from crewai import Agent, Task, Crew, Process
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_groq import ChatGroq
+try:
+    from google import genai
+    from google.genai import types
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
 
 
 class ConfidenceLevel(Enum):
@@ -20,440 +23,292 @@ class ConfidenceLevel(Enum):
 
 class AgenticValidator:
     """
-    CrewAI-powered intelligent validator for paraphrase detection edge cases
+    Gemini-powered intelligent validator for paraphrase detection edge cases
     
     Features:
-    - Multi-agent analysis with specialized roles
     - Smart triggering: Activates when model likely missed paraphrases
     - Edge case detection with semantic reasoning
     - Confidence-based routing
     """
     
     def __init__(self):
-        """Initialize CrewAI agents and LLM"""
-        # Get API key (prefer Gemini, fallback to Groq)
+        """Initialize Gemini API"""
         gemini_key = os.getenv("GEMINI_API_KEY")
-        groq_key = os.getenv("GROQ_API_KEY")
         
-        if not gemini_key and not groq_key:
-            print("⚠️  Warning: No GEMINI_API_KEY or GROQ_API_KEY found. Agentic AI disabled.")
+        if not GEMINI_AVAILABLE:
+            print("⚠️  Warning: google-generativeai not installed. Agentic AI disabled.")
+            self.enabled = False
+            return
+        
+        if not gemini_key:
+            print("⚠️  Warning: No GEMINI_API_KEY found. Agentic AI disabled.")
             self.enabled = False
             return
         
         self.enabled = True
         
-        # Initialize LLM (prefer Gemini, fallback to Groq)
+        # Initialize Gemini client
         try:
-            if gemini_key:
-                self.llm = ChatGoogleGenerativeAI(
-                    model="gemini-1.5-flash",
-                    google_api_key=gemini_key,
-                    temperature=0.3,
-                    convert_system_message_to_human=True
-                )
-                print("✓ CrewAI initialized with Gemini")
-            elif groq_key:
-                self.llm = ChatGroq(
-                    model="llama-3.3-70b-versatile",
-                    groq_api_key=groq_key,
-                    temperature=0.3
-                )
-                print("✓ CrewAI initialized with Groq")
+            self.client = genai.Client(api_key=gemini_key)
+            print("✓ Agentic AI initialized with Gemini")
         except Exception as e:
-            print(f"⚠️  Warning: Failed to initialize LLM: {e}")
+            print(f"⚠️  Warning: Failed to initialize Gemini: {e}")
             self.enabled = False
             return
         
         # Statistics tracking
         self._total_validations = 0
         self._agent_activations = 0
-        self._paraphrase_rescues = 0  # Times agent corrected model
+        self._paraphrase_rescues = 0
         self._edge_case_counts = {
             "length_mismatch": 0,
             "short_text": 0,
             "exact_match_low_similarity": 0,
             "numeric_heavy": 0,
             "special_chars_heavy": 0,
-            "low_confidence_paraphrase": 0,  # New
-            "borderline_case": 0  # New
+            "borderline_case": 0
         }
-        
-        # Create specialized agents
-        self._create_agents()
     
-    def _create_agents(self):
-        """Create specialized CrewAI agents for paraphrase analysis"""
-        
-        # Agent 1: Paraphrase Analyzer
-        self.paraphrase_analyzer = Agent(
-            role="Senior Paraphrase Detection Expert",
-            goal="Accurately identify if two texts are paraphrases by analyzing semantic meaning, intent, and context",
-            backstory="""You are a world-class expert in natural language understanding with 15 years 
-            of experience in paraphrase detection, semantic similarity analysis, and linguistic reasoning. 
-            You excel at identifying paraphrases even when texts differ significantly in length, structure, 
-            or wording. You understand that paraphrases convey the same core meaning despite surface differences.""",
-            verbose=False,
-            allow_delegation=False,
-            llm=self.llm
-        )
-        
-        # Agent 2: Edge Case Specialist
-        self.edge_case_specialist = Agent(
-            role="Edge Case Detection Specialist",
-            goal="Identify edge cases and anomalies in text comparisons that might confuse ML models",
-            backstory="""You are an expert at identifying edge cases in NLP systems. You specialize in 
-            detecting length mismatches, short texts, numeric-heavy content, special characters, and 
-            other anomalies that can cause neural models to produce unreliable predictions. You provide 
-            clear explanations of why each edge case matters.""",
-            verbose=False,
-            allow_delegation=False,
-            llm=self.llm
-        )
-        
-        # Agent 3: Semantic Validator
-        self.semantic_validator = Agent(
-            role="Semantic Equivalence Validator",
-            goal="Validate semantic equivalence by analyzing deep meaning, context, and logical relationships",
-            backstory="""You are a semantic analysis expert with deep knowledge of linguistics, logic, 
-            and meaning representation. You can determine if two texts express the same proposition, 
-            even if they use completely different words. You consider context, implications, and 
-            pragmatic meaning beyond just surface-level word matching.""",
-            verbose=False,
-            allow_delegation=False,
-            llm=self.llm
-        )
-    
-    def _calculate_confidence(self, similarity: float) -> ConfidenceLevel:
-        """Calculate confidence level based on similarity score"""
-        if similarity > 0.85:
+    def get_confidence_level(self, similarity: float) -> ConfidenceLevel:
+        """Determine confidence level from similarity score"""
+        if similarity >= 0.85:
             return ConfidenceLevel.HIGH
-        elif similarity > 0.70:
+        elif similarity >= 0.70:
             return ConfidenceLevel.MEDIUM
-        elif similarity > 0.55:
+        elif similarity >= 0.55:
             return ConfidenceLevel.LOW
         else:
             return ConfidenceLevel.UNCERTAIN
     
-    def check_edge_cases(self, text_a: str, text_b: str, similarity: float) -> List[str]:
-        """
-        Detect edge cases that might confuse the model
-        
-        Returns:
-            List of detected edge case types
-        """
+    def detect_edge_cases(self, text1: str, text2: str) -> list:
+        """Detect potential edge cases that might confuse the model"""
         edge_cases = []
         
-        # 1. Length mismatch (3x or more difference)
-        len_a, len_b = len(text_a.split()), len(text_b.split())
-        if len_a > 0 and len_b > 0:
-            ratio = max(len_a, len_b) / min(len_a, len_b)
-            if ratio >= 3.0:
-                edge_cases.append("length_mismatch")
-                self._edge_case_counts["length_mismatch"] += 1
+        len1, len2 = len(text1), len(text2)
         
-        # 2. Short text (< 10 words each)
-        if len_a < 10 and len_b < 10:
+        # Length mismatch (3x difference)
+        if max(len1, len2) > 3 * min(len1, len2) and min(len1, len2) > 0:
+            edge_cases.append("length_mismatch")
+            self._edge_case_counts["length_mismatch"] += 1
+        
+        # Short text (less than 20 chars)
+        if min(len1, len2) < 20:
             edge_cases.append("short_text")
             self._edge_case_counts["short_text"] += 1
         
-        # 3. Exact match but low similarity (model error)
-        if text_a.strip().lower() == text_b.strip().lower() and similarity < 0.7:
-            edge_cases.append("exact_match_low_similarity")
-            self._edge_case_counts["exact_match_low_similarity"] += 1
+        # Numeric heavy (>30% digits)
+        def digit_ratio(text):
+            return sum(c.isdigit() for c in text) / max(len(text), 1)
         
-        # 4. Numeric heavy (>30% numbers)
-        def is_numeric_heavy(text: str) -> bool:
-            digits = sum(c.isdigit() for c in text)
-            return digits / len(text) > 0.3 if len(text) > 0 else False
-        
-        if is_numeric_heavy(text_a) or is_numeric_heavy(text_b):
+        if digit_ratio(text1) > 0.3 or digit_ratio(text2) > 0.3:
             edge_cases.append("numeric_heavy")
             self._edge_case_counts["numeric_heavy"] += 1
         
-        # 5. Special characters heavy (>20% special chars)
-        def is_special_char_heavy(text: str) -> bool:
+        # Special chars heavy
+        def special_ratio(text):
             special = sum(not c.isalnum() and not c.isspace() for c in text)
-            return special / len(text) > 0.2 if len(text) > 0 else False
+            return special / max(len(text), 1)
         
-        if is_special_char_heavy(text_a) or is_special_char_heavy(text_b):
+        if special_ratio(text1) > 0.2 or special_ratio(text2) > 0.2:
             edge_cases.append("special_chars_heavy")
             self._edge_case_counts["special_chars_heavy"] += 1
-        
-        # 6. Low confidence but might be paraphrase (borderline case)
-        if 0.55 <= similarity <= 0.70:
-            edge_cases.append("borderline_case")
-            self._edge_case_counts["borderline_case"] += 1
-        
-        # 7. Very low similarity but texts look semantically similar
-        if similarity < 0.55:
-            edge_cases.append("low_confidence_paraphrase")
-            self._edge_case_counts["low_confidence_paraphrase"] += 1
         
         return edge_cases
     
     def should_trigger_agent(
-        self, 
-        text_a: str, 
-        text_b: str, 
-        similarity: float, 
-        edge_cases: List[str]
+        self,
+        similarity: float,
+        is_paraphrase: bool,
+        edge_cases: list
     ) -> bool:
         """
-        Smart triggering logic: Activate agents when they can add value
+        Determine if agentic validation should be triggered
         
         Triggers when:
-        1. Model is uncertain (similarity < 0.55)
-        2. Borderline cases (0.55-0.70) - might miss paraphrases
-        3. Edge cases detected that could confuse model
-        4. Model says "not paraphrase" but might be wrong (0.40-0.75)
-        
-        Returns:
-            True if agents should analyze, False otherwise
+        1. Similarity is in borderline range (0.55-0.75) - might be missing paraphrases
+        2. Edge cases detected
+        3. Low confidence (< 0.55) but could be a paraphrase
         """
-        confidence = self._calculate_confidence(similarity)
+        confidence = self.get_confidence_level(similarity)
         
-        # HIGH confidence (>0.85) - trust model, no need for agents
-        if confidence == ConfidenceLevel.HIGH:
+        # HIGH confidence and paraphrase detected - skip agent
+        if confidence == ConfidenceLevel.HIGH and is_paraphrase:
             return False
         
-        # UNCERTAIN (<0.55) - always use agents
-        if confidence == ConfidenceLevel.UNCERTAIN:
+        # Borderline case - agent should verify
+        if 0.55 <= similarity <= 0.75:
+            self._edge_case_counts["borderline_case"] += 1
             return True
         
-        # Edge cases present - use agents for validation
+        # Edge cases detected - agent should verify
         if edge_cases:
             return True
         
-        # Borderline cases (0.55-0.75) - model might miss paraphrases
-        # This is the key for catching false negatives
-        if 0.55 <= similarity <= 0.75:
+        # UNCERTAIN confidence - agent should help
+        if confidence == ConfidenceLevel.UNCERTAIN:
             return True
         
-        # Default: trust model
         return False
     
-    def validate_with_crew(
-        self, 
-        text_a: str, 
-        text_b: str, 
-        similarity: float, 
-        edge_cases: List[str]
-    ) -> Tuple[bool, str, str]:
+    def validate(
+        self,
+        text1: str,
+        text2: str,
+        model_similarity: float,
+        model_is_paraphrase: bool
+    ) -> Dict:
         """
-        Use CrewAI multi-agent system to validate paraphrase detection
+        Validate paraphrase detection using Gemini
         
         Returns:
-            (is_paraphrase, confidence_level, reasoning)
-        """
-        if not self.enabled:
-            return None, None, "CrewAI not enabled"
-        
-        self._agent_activations += 1
-        
-        # Task 1: Analyze edge cases
-        edge_case_task = Task(
-            description=f"""Analyze these two texts for edge cases and potential issues:
-
-Text A: "{text_a}"
-Text B: "{text_b}"
-
-ML Model Similarity: {similarity:.2f}
-Detected Edge Cases: {', '.join(edge_cases) if edge_cases else 'None'}
-
-Identify any edge cases, anomalies, or factors that might cause the ML model to produce 
-unreliable predictions. Consider length differences, special characters, numbers, etc.
-
-Provide a brief analysis (2-3 sentences).""",
-            agent=self.edge_case_specialist,
-            expected_output="Analysis of edge cases and model reliability factors"
-        )
-        
-        # Task 2: Validate semantic equivalence
-        semantic_task = Task(
-            description=f"""Determine if these texts are semantically equivalent (paraphrases):
-
-Text A: "{text_a}"
-Text B: "{text_b}"
-
-ML Model Similarity: {similarity:.2f}
-
-Analyze the deep semantic meaning and determine if these texts express the same core 
-message or proposition. Consider:
-- Do they convey the same information?
-- Would they have the same truth value in any context?
-- Are the intentions and implications equivalent?
-
-Answer with: PARAPHRASE or NOT_PARAPHRASE
-Then explain your reasoning (2-3 sentences).""",
-            agent=self.semantic_validator,
-            expected_output="Semantic equivalence determination with reasoning"
-        )
-        
-        # Task 3: Final paraphrase decision
-        final_decision_task = Task(
-            description=f"""Based on the edge case analysis and semantic validation, make a final decision:
-
-Text A: "{text_a}"
-Text B: "{text_b}"
-
-ML Model Similarity: {similarity:.2f}
-Edge Cases: {', '.join(edge_cases) if edge_cases else 'None'}
-
-Determine:
-1. Are these texts paraphrases? (YES/NO)
-2. Confidence level: HIGH, MEDIUM, or LOW
-3. Brief reasoning (2-3 sentences)
-
-Format your response exactly as:
-DECISION: [YES/NO]
-CONFIDENCE: [HIGH/MEDIUM/LOW]
-REASONING: [Your explanation]""",
-            agent=self.paraphrase_analyzer,
-            expected_output="Final paraphrase decision with confidence and reasoning"
-        )
-        
-        # Create and run crew
-        crew = Crew(
-            agents=[self.edge_case_specialist, self.semantic_validator, self.paraphrase_analyzer],
-            tasks=[edge_case_task, semantic_task, final_decision_task],
-            process=Process.sequential,
-            verbose=False
-        )
-        
-        try:
-            result = crew.kickoff()
-            
-            # Parse result
-            result_text = str(result)
-            
-            # Extract decision
-            is_paraphrase = False
-            confidence = "MEDIUM"
-            reasoning = result_text
-            
-            if "DECISION:" in result_text:
-                decision_line = [l for l in result_text.split('\n') if 'DECISION:' in l][0]
-                is_paraphrase = 'YES' in decision_line.upper()
-            else:
-                # Fallback: look for keywords
-                is_paraphrase = any(word in result_text.upper() for word in ['PARAPHRASE', 'YES', 'EQUIVALENT', 'SAME'])
-            
-            if "CONFIDENCE:" in result_text:
-                conf_line = [l for l in result_text.split('\n') if 'CONFIDENCE:' in l][0]
-                if 'HIGH' in conf_line:
-                    confidence = "HIGH"
-                elif 'LOW' in conf_line:
-                    confidence = "LOW"
-            
-            if "REASONING:" in result_text:
-                reasoning_parts = result_text.split("REASONING:")
-                if len(reasoning_parts) > 1:
-                    reasoning = reasoning_parts[1].strip()
-            
-            return is_paraphrase, confidence, reasoning
-            
-        except Exception as e:
-            print(f"❌ CrewAI validation error: {e}")
-            return None, None, f"Validation failed: {str(e)}"
-    
-    def validate_prediction(
-        self, 
-        text_a: str, 
-        text_b: str, 
-        model_similarity: float
-    ) -> Tuple[float, bool, Dict]:
-        """
-        Main validation pipeline with smart agent triggering
-        
-        Returns:
-            (adjusted_similarity, final_decision, metadata)
+            Dict with validation results
         """
         self._total_validations += 1
         
-        # Calculate confidence
-        confidence = self._calculate_confidence(model_similarity)
+        if not self.enabled:
+            return {
+                "agent_used": False,
+                "confidence_level": self.get_confidence_level(model_similarity).value,
+                "edge_cases": [],
+                "agent_validation": None,
+                "agent_reasoning": None,
+                "agent_confidence": None,
+                "paraphrase_rescued": False,
+                "original_similarity": model_similarity,
+                "adjusted_similarity": model_similarity
+            }
         
         # Detect edge cases
-        edge_cases = self.check_edge_cases(text_a, text_b, model_similarity)
+        edge_cases = self.detect_edge_cases(text1, text2)
         
-        # Determine if agents should analyze
-        should_activate = self.should_trigger_agent(text_a, text_b, model_similarity, edge_cases)
-        
-        metadata = {
-            "confidence_level": confidence.value,
-            "edge_cases": edge_cases,
-            "used_agent_validation": False,
-            "agent_reasoning": None,
-            "paraphrase_rescued": False
-        }
-        
-        # If no need for agents, use model prediction
-        if not should_activate or not self.enabled:
-            model_decision = model_similarity > 0.75
-            return model_similarity, model_decision, metadata
-        
-        # Activate CrewAI agents
-        agent_decision, agent_confidence, agent_reasoning = self.validate_with_crew(
-            text_a, text_b, model_similarity, edge_cases
+        # Check if agent should be triggered
+        should_trigger = self.should_trigger_agent(
+            model_similarity,
+            model_is_paraphrase,
+            edge_cases
         )
         
-        if agent_decision is None:
-            # Agent validation failed, fallback to model
-            model_decision = model_similarity > 0.75
-            return model_similarity, model_decision, metadata
+        if not should_trigger:
+            return {
+                "agent_used": False,
+                "confidence_level": self.get_confidence_level(model_similarity).value,
+                "edge_cases": edge_cases,
+                "agent_validation": None,
+                "agent_reasoning": None,
+                "agent_confidence": None,
+                "paraphrase_rescued": False,
+                "original_similarity": model_similarity,
+                "adjusted_similarity": model_similarity
+            }
         
-        metadata["used_agent_validation"] = True
-        metadata["agent_reasoning"] = agent_reasoning
-        metadata["agent_confidence"] = agent_confidence
+        # Agent validation triggered
+        self._agent_activations += 1
         
-        # Check if agent rescued a paraphrase the model missed
-        model_decision = model_similarity > 0.75
-        if agent_decision and not model_decision:
-            self._paraphrase_rescues += 1
-            metadata["paraphrase_rescued"] = True
-        
-        # Smart blending: Trust high-confidence agents over uncertain model
-        if agent_confidence == "HIGH":
-            # High confidence agent - trust it
-            adjusted_similarity = 0.90 if agent_decision else 0.30
-            final_decision = agent_decision
-        elif agent_confidence == "MEDIUM":
-            # Medium confidence - blend with model
-            if agent_decision:
+        try:
+            # Create prompt for Gemini
+            prompt = f"""You are an expert in paraphrase detection. Analyze if these two texts are paraphrases (convey the same meaning).
+
+Text 1: "{text1}"
+
+Text 2: "{text2}"
+
+Model's similarity score: {model_similarity:.2f}
+Model's decision: {"PARAPHRASE" if model_is_paraphrase else "NOT PARAPHRASE"}
+Detected edge cases: {edge_cases if edge_cases else "None"}
+
+Analyze these texts and determine:
+1. Are they truly paraphrases? (YES/NO)
+2. Your confidence level (HIGH/MEDIUM/LOW)
+3. Brief reasoning (1-2 sentences)
+
+Respond in this exact format:
+PARAPHRASE: YES or NO
+CONFIDENCE: HIGH, MEDIUM, or LOW
+REASONING: Your brief explanation"""
+
+            # Call Gemini using new API
+            response = self.client.models.generate_content(
+                model="gemini-1.5-flash",
+                contents=prompt
+            )
+            result_text = response.text.strip()
+            
+            # Parse response
+            lines = result_text.split('\n')
+            agent_is_paraphrase = False
+            agent_confidence = "MEDIUM"
+            agent_reasoning = "Analysis completed"
+            
+            for line in lines:
+                line = line.strip()
+                if line.startswith("PARAPHRASE:"):
+                    agent_is_paraphrase = "YES" in line.upper()
+                elif line.startswith("CONFIDENCE:"):
+                    conf = line.split(":", 1)[1].strip().upper()
+                    if conf in ["HIGH", "MEDIUM", "LOW"]:
+                        agent_confidence = conf
+                elif line.startswith("REASONING:"):
+                    agent_reasoning = line.split(":", 1)[1].strip()
+            
+            # Check if agent rescued a paraphrase
+            paraphrase_rescued = agent_is_paraphrase and not model_is_paraphrase
+            if paraphrase_rescued:
+                self._paraphrase_rescues += 1
+            
+            # Adjust similarity if agent disagrees
+            adjusted_similarity = model_similarity
+            if agent_is_paraphrase and model_similarity < 0.75:
                 adjusted_similarity = max(model_similarity, 0.80)
-            else:
-                adjusted_similarity = min(model_similarity, 0.65)
-            final_decision = agent_decision
-        else:
-            # Low confidence agent - prefer model if high confidence
-            if confidence == ConfidenceLevel.HIGH:
-                adjusted_similarity = model_similarity
-                final_decision = model_decision
-            else:
-                # Both uncertain - slight preference to agent
-                adjusted_similarity = 0.70 if agent_decision else 0.50
-                final_decision = agent_decision
-        
-        return adjusted_similarity, final_decision, metadata
+            elif not agent_is_paraphrase and model_similarity > 0.60:
+                adjusted_similarity = min(model_similarity, 0.50)
+            
+            return {
+                "agent_used": True,
+                "confidence_level": self.get_confidence_level(model_similarity).value,
+                "edge_cases": edge_cases,
+                "agent_validation": agent_is_paraphrase,
+                "agent_reasoning": agent_reasoning,
+                "agent_confidence": agent_confidence,
+                "paraphrase_rescued": paraphrase_rescued,
+                "original_similarity": model_similarity,
+                "adjusted_similarity": adjusted_similarity
+            }
+            
+        except Exception as e:
+            print(f"⚠️  Agent validation failed: {e}")
+            return {
+                "agent_used": False,
+                "confidence_level": self.get_confidence_level(model_similarity).value,
+                "edge_cases": edge_cases,
+                "agent_validation": None,
+                "agent_reasoning": f"Agent error: {str(e)}",
+                "agent_confidence": None,
+                "paraphrase_rescued": False,
+                "original_similarity": model_similarity,
+                "adjusted_similarity": model_similarity
+            }
     
     def get_stats(self) -> Dict:
-        """Get validator statistics"""
-        if not self.enabled:
-            return {"enabled": False}
+        """Get validation statistics"""
+        activation_rate = 0
+        rescue_rate = 0
         
-        rescue_rate = (self._paraphrase_rescues / self._agent_activations * 100) if self._agent_activations > 0 else 0
-        activation_rate = (self._agent_activations / self._total_validations * 100) if self._total_validations > 0 else 0
+        if self._total_validations > 0:
+            activation_rate = (self._agent_activations / self._total_validations) * 100
+        
+        if self._agent_activations > 0:
+            rescue_rate = (self._paraphrase_rescues / self._agent_activations) * 100
         
         return {
-            "enabled": True,
+            "enabled": self.enabled,
             "total_validations": self._total_validations,
             "agent_activations": self._agent_activations,
-            "activation_rate": f"{activation_rate:.2f}%",
+            "activation_rate": f"{activation_rate:.1f}%",
             "paraphrase_rescues": self._paraphrase_rescues,
-            "rescue_rate": f"{rescue_rate:.2f}%",
-            "edge_cases_detected": self._edge_case_counts
+            "rescue_rate": f"{rescue_rate:.1f}%",
+            "edge_case_counts": self._edge_case_counts
         }
 
 
-# Global singleton instance
+# Global validator instance
 agentic_validator = AgenticValidator()

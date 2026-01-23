@@ -8,8 +8,7 @@ from contextlib import asynccontextmanager
 import time
 
 from backend.config.settings import settings
-from backend.db.session import init_db
-from backend.api.routes import auth, inference
+from backend.api.routes import inference
 from backend.api.middleware.security import SecurityMiddleware, LoggingMiddleware
 
 
@@ -20,10 +19,6 @@ async def lifespan(app: FastAPI):
     print("=" * 70)
     print("🚀 Starting Paraphrase Detection API")
     print("=" * 70)
-    
-    # Initialize database
-    init_db()
-    print("✓ Database initialized")
     
     # Preload model for faster first request
     from backend.services.inference_service import inference_engine
@@ -87,7 +82,6 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 # Include routers
-app.include_router(auth.router)
 app.include_router(inference.router)
 
 
