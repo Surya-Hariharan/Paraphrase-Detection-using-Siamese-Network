@@ -5,6 +5,8 @@ Production-grade paraphrase detection system using Siamese Neural Networks with 
 ## Features
 
 - **High Performance**: Optimized inference with caching (10,000 query cache)
+- **CrewAI Multi-Agent System**: Intelligent edge case handling with collaborative AI agents ([Learn more](docs/AGENTIC_AI.md))
+- **Smart Triggering**: Agents only activate when needed - catches paraphrases the model misses
 - **Secure**: JWT authentication, API keys, DDoS protection
 - **Fast**: GZip compression, async processing, background logging
 - **Scalable**: Connection pooling, thread-safe caching
@@ -23,6 +25,7 @@ pip install -r requirements.txt
 ```bash
 cp .env.example .env
 # Edit .env with your configuration
+# Add GEMINI_API_KEY for CrewAI multi-agent features (optional but recommended)
 ```
 
 ### 3. Initialize Database
@@ -74,14 +77,14 @@ curl -X POST http://localhost:8000/auth/login \
 
 ### Paraphrase Detection
 
-```bash
-# Compare texts
+```bash (with agentic AI)
 curl -X POST http://localhost:8000/inference/compare \
   -H "Content-Type: application/json" \
   -d '{
     "text1": "The cat sat on the mat",
     "text2": "A feline rested on the rug",
-    "use_cache": true
+    "use_cache": true,
+    "use_agent": true
   }'
 ```
 
@@ -91,8 +94,58 @@ curl -X POST http://localhost:8000/inference/compare \
   "similarity": 0.85,
   "is_paraphrase": true,
   "inference_time_ms": 45.2,
-  "cached": false
+  "cached": false,
+  "agent_used": true,
+  "confidence_level": "HIGH",
+  "edge_cases": [],
+  "llm_validation": false,
+  "llm_reasoning": null,
+  "original_similarity": 0.85,
+  "adjusted_similarity": 0.85
 }
+```
+
+**For edge cases with LLM validation** (short texts, length mismatches, etc.):
+```json
+{
+  "similarity": 0.82,
+  "is_paraphrase": true,
+  "inference_time_ms": 1250.5,
+  "cached": false,
+  "agent_used": true,
+  "confidence_level": "LOW",
+  "edge_cases
+│   ├── inference_service.py    # Optimized inference
+│   └── agentic_validator.py    # Edge case AI validation
+├── db/                     # Database models
+├── config/                 # Configuration
+└── cli/                    # Management scripts
+```
+
+## Agentic AI Pipeline
+Agentic AI**: LLM validation only for edge cases (~1-5% of queries)
+3. **CUDA Optimization**: cudnn.benchmark for faster GPU inference
+4. **Async Processing**: Background logging, non-blocking operations
+5. **GZip Compression**: Automatic response compression
+6. **Connection Pooling**: Efficient database connections
+7 **Edge Case Detection**: Length mismatch, short text, numeric-heavy, etc.
+- **LLM Validation**: Google Gemini Pro for uncertain predictions
+- **Smart Blending**: Combines model + LLM decisions intelligently
+
+**Edge cases detected**:
+1. Length mismatch (3x difference)
+2. Short texts (< 10 words)
+3. Exact matches with low similarity
+4. Numeric-heavy content (> 30% numbers)
+5. Special character-heavy (> 20% special chars)
+
+**Performance**: LLM activates for only ~1-5% of queries (edge cases), keeping most requests fast.
+
+📖 **Full documentation**: [Agentic AI Guide](docs/AGENTIC_AI.md)adjusted_similarity": 0.82
+}
+```
+
+📖 **Learn more**: [Agentic AI Documentation](docs/AGENTIC_AI.md)
 ```
 
 ## Architecture
@@ -112,7 +165,10 @@ backend/
 │   ├── auth/               # JWT, auth dependencies
 │   └── ddos/               # DDoS protection
 ├── services/               # Business logic
-├── db/                     # Database models
+├─Agentic AI
+GEMINI_API_KEY=your_gemini_api_key_here  # For edge case validation
+
+# ─ db/                     # Database models
 ├── config/                 # Configuration
 └── cli/                    # Management scripts
 ```
@@ -173,7 +229,14 @@ docker run -p 8000:8000 --env-file .env paraphrase-api
 - **JWT Tokens**: Secure authentication with 24h expiry
 - **API Keys**: Programmatic access tokens
 - **Rate Limiting**: 60 requests/minute per IP
-- **DDoS Protection**: Threat level tracking
+- **DDoS Protection**,
+    "agent_validations": 47,
+    "agent_usage_rate": "3.81%",
+    "agentic_ai": {
+      "total_validations": 47,
+      "llm_calls": 12,
+      "llm_usage_rate": "0.97%"
+    }: Threat level tracking
 - **CORS**: Configurable cross-origin policies
 - **Input Validation**: Pydantic models with size limits
 

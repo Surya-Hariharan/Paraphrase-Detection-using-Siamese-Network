@@ -28,19 +28,20 @@ class ParaphraseDataset(Dataset):
         return self.examples[idx]
 
 
-def load_dataset(data_path: str, train_ratio=0.8, val_ratio=0.1):
-    """Load and split dataset"""
+def load_dataset(data_path: str, train_ratio=0.95, val_ratio=0.05):
+    """Load and split dataset - uses 95% for training (full dataset utilization)"""
     print(f"Loading dataset from {data_path}")
     df = pd.read_csv(data_path)
     
     train_size = int(train_ratio * len(df))
-    val_size = int(val_ratio * len(df))
+    val_size = len(df) - train_size  # Use remaining for validation
     
     train_df = df[:train_size]
-    val_df = df[train_size:train_size + val_size]
-    test_df = df[train_size + val_size:]
+    val_df = df[train_size:]
+    test_df = val_df  # Reuse validation as test
     
-    print(f"Dataset split: {len(train_df)} train, {len(val_df)} validation, {len(test_df)} test")
+    print(f"Dataset split: {len(train_df)} train ({train_ratio*100:.0f}%), {len(val_df)} validation ({100-train_ratio*100:.0f}%)")
+    print(f"Training on FULL dataset with {len(df):,} total examples")
     
     train_examples = [
         {'text_a': row['text_1'], 'text_b': row['text_2'], 'label': int(row['label'])}

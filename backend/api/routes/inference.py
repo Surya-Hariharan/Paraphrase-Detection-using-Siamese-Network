@@ -18,6 +18,7 @@ class CompareRequest(BaseModel):
     text1: str = Field(..., min_length=1, max_length=5000, description="First text")
     text2: str = Field(..., min_length=1, max_length=5000, description="Second text")
     use_cache: bool = Field(True, description="Use inference cache for faster response")
+    use_agent: bool = Field(True, description="Use agentic AI for edge case validation")
     
     @validator('text1', 'text2')
     def validate_text(cls, v):
@@ -31,6 +32,15 @@ class CompareResponse(BaseModel):
     is_paraphrase: bool = Field(..., description="Whether texts are paraphrases")
     inference_time_ms: float = Field(..., description="Inference time in milliseconds")
     cached: bool = Field(..., description="Whether result was from cache")
+    agent_used: bool = Field(False, description="Whether agentic AI was used")
+    confidence_level: Optional[str] = Field(None, description="Confidence level (HIGH/MEDIUM/LOW/UNCERTAIN)")
+    edge_cases: Optional[list] = Field(None, description="Detected edge cases")
+    agent_validation: Optional[bool] = Field(None, description="Whether CrewAI validation was used")
+    agent_reasoning: Optional[str] = Field(None, description="CrewAI reasoning for decision")
+    agent_confidence: Optional[str] = Field(None, description="CrewAI confidence level")
+    paraphrase_rescued: Optional[bool] = Field(None, description="Whether agents caught a paraphrase the model missed")
+    original_similarity: Optional[float] = Field(None, description="Original similarity before agent adjustment")
+    adjusted_similarity: Optional[float] = Field(None, description="Adjusted similarity after agent validation")
 
 
 class HealthResponse(BaseModel):
@@ -75,35 +85,46 @@ async def compare_texts(
     Compare two texts for paraphrase detection
     
     - **Optimized with caching** for repeated queries
+    - **Agentic AI validation** for edge case handling
     - **Fast response times** with async logging
     - **Optional authentication** for tracking
     """
     try:
-        similarity, is_paraphrase, inference_time = inference_engine.predict(
+        similarity, is_paraphrase, inference_time, agent_metadata = inference_engine.predict(
             request.text1,
             request.text2,
-            use_cache=request.use_cache
+            use_cache=request.use_cache,
+            use_agent=request.use_agent
         )
         
-        cached = inference_time == 0.0
+        cached = agent_metadata.get('cached', False)
         
         # Log in background to not slow down response
         if current_user:
             background_tasks.add_task(
                 log_inference_async,
-                db,
-                current_user.id,
-                request.text1,
-                request.text2,
-                similarity,
-                inference_time
+                db=db,
+                user_id=current_user.id,
+                text1=request.text1,
+                text2=request.text2,
+                similarity=similarity,
+                inference_time=inference_time
             )
         
         return CompareResponse(
             similarity=similarity,
             is_paraphrase=is_paraphrase,
             inference_time_ms=inference_time,
-            cached=cached
+            cached=cached,
+            agent_used=agent_metadata.get('agent_used', False),
+            confidence_level=agent_metadata.get('confidence_level'),
+            edge_cases=agent_metadata.get('edge_cases'),
+            agent_validation=agent_metadata.get('agent_validation'),
+            agent_reasoning=agent_metadata.get('agent_reasoning'),
+            agent_confidence=agent_metadata.get('agent_confidence'),
+            paraphrase_rescued=agent_metadata.get('paraphrase_rescued'),
+            original_similarity=agent_metadata.get('original_similarity'),
+            adjusted_similarity=agent_metadata.get('adjusted_similarity')
         )
     
     except Exception as e:

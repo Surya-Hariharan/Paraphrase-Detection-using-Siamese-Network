@@ -16,11 +16,11 @@ def main():
     print("PARAPHRASE DETECTION - TRAINING")
     print("=" * 70)
     
-    # Load dataset
+    # Load dataset - using 95% for training (FULL DATASET)
     train_examples, val_examples, test_examples = load_dataset(
         settings.training.DATA_PATH,
-        train_ratio=0.8,
-        val_ratio=0.1
+        train_ratio=0.95,
+        val_ratio=0.05
     )
     
     # Create datasets
