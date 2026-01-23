@@ -7,6 +7,7 @@ Supports environment variables and .env files.
 """
 
 from pydantic_settings import BaseSettings
+from pydantic import ConfigDict
 from typing import Optional, List
 from pathlib import Path
 
@@ -28,9 +29,11 @@ class DatabaseSettings(BaseSettings):
             return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
         return ""
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    model_config = ConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="allow"
+    )
 
 
 class SecuritySettings(BaseSettings):
@@ -47,6 +50,10 @@ class SecuritySettings(BaseSettings):
     API_KEY_ENABLED: bool = False
     ADMIN_API_KEY: Optional[str] = None
     
+    # Agentic AI API Keys
+    GEMINI_API_KEY: Optional[str] = None
+    GROQ_API_KEY: Optional[str] = None
+    
     # CORS
     CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173"]
     CORS_ALLOW_CREDENTIALS: bool = True
@@ -59,9 +66,11 @@ class SecuritySettings(BaseSettings):
     DDOS_PROTECTION_ENABLED: bool = True
     MAX_CLIENTS: int = 10000
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    model_config = ConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="allow"
+    )
 
 
 class ModelSettings(BaseSettings):
@@ -77,9 +86,11 @@ class ModelSettings(BaseSettings):
     MAX_SEQUENCE_LENGTH: int = 512
     SIMILARITY_THRESHOLD: float = 0.5
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    model_config = ConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="allow"
+    )
 
 
 class TrainingSettings(BaseSettings):
@@ -103,9 +114,11 @@ class TrainingSettings(BaseSettings):
     GRADIENT_ACCUMULATION_STEPS: int = 1
     WARMUP_RATIO: float = 0.1
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    model_config = ConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="allow"
+    )
 
 
 class AppSettings(BaseSettings):
@@ -132,9 +145,11 @@ class AppSettings(BaseSettings):
     MAX_UPLOAD_SIZE_MB: int = 10
     ALLOWED_EXTENSIONS: List[str] = [".txt", ".pdf", ".docx"]
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    model_config = ConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="allow"
+    )
 
 
 class Settings:
