@@ -4,6 +4,10 @@ import os
 from enum import Enum
 from typing import Dict, Tuple, Optional
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 try:
     from google import genai
