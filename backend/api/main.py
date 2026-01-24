@@ -106,9 +106,12 @@ async def health():
     """Fast health check endpoint"""
     from backend.services.inference_service import inference_engine
     
+    is_ready = inference_engine.is_ready()
+    
     return {
-        "status": "healthy",
-        "model_ready": inference_engine.is_ready(),
+        "status": "healthy" if is_ready else "model_loading",
+        "is_model_ready": is_ready,
+        "model_ready": is_ready,  # Keep for backward compatibility
         "timestamp": time.time()
     }
 

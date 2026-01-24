@@ -26,6 +26,7 @@ class CompareRequest(BaseModel):
 class CompareResponse(BaseModel):
     similarity: float = Field(..., description="Similarity score (0-1)")
     is_paraphrase: bool = Field(..., description="Whether texts are paraphrases")
+    confidence: float = Field(..., description="Confidence score (0-1)")
     inference_time_ms: float = Field(..., description="Inference time in milliseconds")
     cached: bool = Field(False, description="Whether result was from cache")
     agent_used: bool = Field(False, description="Whether agentic AI was used")
@@ -74,6 +75,7 @@ async def compare_texts(request: CompareRequest):
         return CompareResponse(
             similarity=similarity,
             is_paraphrase=is_paraphrase,
+            confidence=similarity,
             inference_time_ms=inference_time,
             cached=cached,
             agent_used=agent_metadata.get('agent_used', False),

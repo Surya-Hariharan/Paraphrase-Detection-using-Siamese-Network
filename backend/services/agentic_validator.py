@@ -230,7 +230,7 @@ PARAPHRASE: YES or NO
 CONFIDENCE: HIGH, MEDIUM, or LOW
 REASONING: Your brief explanation"""
 
-            # Call Gemini using new API
+            # Call Gemini using new API - using stable model instead of experimental
             response = self.client.models.generate_content(
                 model="gemini-1.5-flash",
                 contents=prompt
@@ -279,13 +279,20 @@ REASONING: Your brief explanation"""
             }
             
         except Exception as e:
-            print(f"⚠️  Agent validation failed: {e}")
+            error_msg = str(e)
+            
+            # Check if it's a quota/rate limit error
+            if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg or "quota" in error_msg.lower():
+                print(f"⚠️  Gemini API quota exceeded. Agent validation skipped.")
+            else:
+                print(f"⚠️  Agent validation failed: {e}")
+            
             return {
                 "agent_used": False,
                 "confidence_level": self.get_confidence_level(model_similarity).value,
                 "edge_cases": edge_cases,
                 "agent_validation": None,
-                "agent_reasoning": f"Agent error: {str(e)}",
+                "agent_reasoning": "Agent validation unavailable (API quota exceeded)" if "429" in error_msg else f"Agent error: {str(e)[:100]}",
                 "agent_confidence": None,
                 "paraphrase_rescued": False,
                 "original_similarity": model_similarity,
