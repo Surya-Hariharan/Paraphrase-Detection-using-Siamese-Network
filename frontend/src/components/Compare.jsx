@@ -50,14 +50,9 @@ const Compare = () => {
     try {
       let data;
       
-      // Use file upload API if both files are provided
-      if (fileA && fileB) {
-        data = await compareFiles(fileA, fileB, useAgent, threshold);
-      } 
-      // Otherwise use text comparison API
-      else {
-        data = await compareDocuments(textA, textB, useAgent, threshold);
-      }
+      // For now, only use text comparison API
+      // File upload feature will be added later
+      data = await compareDocuments(textA, textB, useAgent, threshold);
       
       setResult(data);
     } catch (err) {
@@ -92,16 +87,23 @@ const Compare = () => {
     if (fileInputBRef.current) fileInputBRef.current.value = '';
   };
 
-  const threadsBackground = useMemo(() => (
-    <div className="fixed inset-0 opacity-30 pointer-events-none">
-      <Threads
-        color={[0, 0, 0]}
-        amplitude={0.5}
-        distance={0}
-        enableMouseInteraction={false}
-      />
-    </div>
-  ), []);
+  const threadsBackground = useMemo(() => {
+    try {
+      return (
+        <div className="fixed inset-0 opacity-30 pointer-events-none">
+          <Threads
+            color={[0, 0, 0]}
+            amplitude={0.5}
+            distance={0}
+            enableMouseInteraction={false}
+          />
+        </div>
+      );
+    } catch (error) {
+      console.error('Threads component error:', error);
+      return null;
+    }
+  }, []);
 
   return (
     <div className="min-h-screen bg-white relative overflow-hidden">

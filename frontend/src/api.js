@@ -52,33 +52,65 @@ export const healthCheck = async () => {
  * Compare two documents for paraphrase detection
  * @param {string} textA - First text to compare
  * @param {string} textB - Second text to compare
- * @param {boolean} useCache - Whether to use inference cache
+ * @param {boolean} useAgent - Whether to use AI agent validation
+ * @param {number} threshold - Similarity threshold (0-1)
  * @returns {Promise<Object>} Comparison results
  */
-export const compareDocuments = async (textA, textB, useCache = true) => {
+export const compareDocuments = async (textA, textB, useAgent = true, threshold = 0.8) => {
   const startTime = Date.now();
   
   const response = await api.post('/inference/compare', {
     text1: textA,
     text2: textB,
-    use_cache: useCache
+    threshold: threshold
   });
   
   const endTime = Date.now();
   const processingTime = (endTime - startTime) / 1000; // Convert to seconds
   
   return {
-    similarity: response.data.similarity,
-    is_paraphrase: response.data.is_paraphrase,
-    inference_time_ms: response.data.inference_time_ms,
-    cached: response.data.cached,
-    processing_time: processingTime
+    ...response.data,
+    processing_time: processingTime,
+    threshold: threshold
+  };
+};
+
+/**
+ * Compare two uploaded files for paraphrase detection
+ * @param {File} fileA - First file to compare
+ * @param {File} fileB - Second file to compare
+ * @param {boolean} useAgent - Whether to use AI agent validation
+ * @param {number} threshold - Similarity threshold (0-1)
+ * @returns {Promise<Object>} Comparison results
+ */
+export const compareFiles = async (fileA, fileB, useAgent = true, threshold = 0.8) => {
+  const startTime = Date.now();
+  
+  const formData = new FormData();
+  formData.append('file1', fileA);
+  formData.append('file2', fileB);
+  formData.append('threshold', threshold.toString());
+  
+  const response = await api.post('/inference/compare-files', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  
+  const endTime = Date.now();
+  const processingTime = (endTime - startTime) / 1000;
+  
+  return {
+    ...response.data,
+    processing_time: processingTime,
+    threshold: threshold
   };
 };
 
 export default {
   getApiInfo,
   healthCheck,
-  compareDocuments
+  compareDocuments,
+  compareFiles
 };
 
