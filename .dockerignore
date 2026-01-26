@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Data & Logs
+data/
+logs/
+*.log
+
+# Model checkpoints (include only trained model)
+# checkpoints/*
+# !checkpoints/siamese_model.pth
+# !checkpoints/training_history.json
+
+# Environment
+.env
+.env.local
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# CI/CD
+.github/
+.gitlab-ci.yml

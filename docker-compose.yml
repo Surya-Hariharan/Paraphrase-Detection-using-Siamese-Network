@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database (optional - comment out if using SQLite)
+  postgres:
+    image: postgres:15-alpine
+    container_name: paracheck-db
+    environment:
+      POSTGRES_DB: paracheck
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - paracheck-network
+
+  # Backend API
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: paracheck-backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - DB_HOST=postgres
+      - DB_TYPE=postgresql
+      - DB_NAME=paracheck
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+    volumes:
+      - ./checkpoints:/app/checkpoints
+      - ./data:/app/data
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - paracheck-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  # Frontend (optional)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: paracheck-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    networks:
+      - paracheck-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  paracheck-network:
+    driver: bridge
